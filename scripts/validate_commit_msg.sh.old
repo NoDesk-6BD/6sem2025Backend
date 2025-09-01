@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+# O Git passa o nome do arquivo da mensagem de commit como primeiro argumento ($1)
+commit_msg_file=$1
+
+# Expressão regular para validar o padrão do commit
+regex="^(feat|fix|doc|style|refactor|test|chore)\\s?\\([a-zA-Z0-9-]+\\):\\s.+$"
+
+# Lê a primeira linha do arquivo da mensagem de commit e armazena na variável commit_msg
+commit_msg=$(head -n1 "$commit_msg_file")
+
+# Verifica se a mensagem de commit corresponde ao padrão
+if ! [[ "$commit_msg" =~ $regex ]]; then
+    echo ""
+    echo "Erro: A mensagem de commit não segue o padrão correto."
+    echo ""
+    echo "Padrão esperado: {tipo} ({código-card-jira}): {descrição curta}"
+    echo "Exemplo: feat (ND-1): Criação da estrutura inicial do backend"
+    echo ""
+    exit 1
+fi
