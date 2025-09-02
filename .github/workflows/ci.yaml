@@ -1,10 +1,39 @@
 name: Pipeline
-on: [push, pull_request]
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+  pull_request_target:
+    types: [closed]
 
 jobs:
-  test:
+  configuracao-e-testes:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Copia os arquivos do repo
+      # 1. Clona o código
+      - name: # 1 Copia os arquivos do repo
         uses: actions/checkout@v3
+
+      # 2. Configura o Python
+      - name: # 2 Configura Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.13"   # ajuste para a versão que seu projeto usa
+
+      # 3. Instala Poetry
+      - name: # 3 Instala Poetry
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+
+      # 4. Instala dependências
+      - name: # 4 Instala dependências com Poetry
+        run: poetry install
+
+      # 5. Executa os testes com pytest
+      - name: # 5 Executa pytest
+        run: poetry run pytest --maxfail=1 --disable-warnings -q
