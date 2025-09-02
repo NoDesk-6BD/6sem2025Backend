@@ -26,9 +26,13 @@ source .venv/bin/activate
 ```bash
 pre-commit install
 ```
+2.1. Ativação do pre-commit:
+```bash
+pre-commit install --hook-type commit-msg --hook-type pre-commit
+```
 
 
-2. Gerar um APP_SECRET:
+3Gerar um APP_SECRET:
 ```bash
 python -c "import secrets; print(secrets.token_urlsafe(64))"
 ```
