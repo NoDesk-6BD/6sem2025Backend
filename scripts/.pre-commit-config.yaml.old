@@ -1,8 +1,0 @@
-repos:
-  - repo: local
-    hooks:
-      - id: check-commit-msg
-        name: Verifica Padrão de Commit
-        entry: ./scripts/validate_commit_msg.sh
-        language: script
-        stages: [commit-msg]

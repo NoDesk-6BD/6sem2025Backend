@@ -1,2 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Ruff
+.ruff_cache/
+
+# Test & Coverage
+.pytest_cache/
+coverage.*
+htmlcov/
+
+# Environment
 .env
-/.env/
+.env/
+
+# Editor & IDEs
+.idea/
+.vscode/
