@@ -4,6 +4,7 @@ from pydantic import Field, SecretStr, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import os
 
+from typing import ClassVar
 
 class Settings(BaseSettings):
     APP_NAME: str = Field()
@@ -11,7 +12,7 @@ class Settings(BaseSettings):
     APP_ENVIRONMENT: Literal["development", "production", "testing"] = Field()
     APP_SECRET: SecretStr = Field()
 
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    BASE_DIR: ClassVar[str] = os.path.dirname(os.path.abspath(__file__))
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(BASE_DIR, "../../.env"),
