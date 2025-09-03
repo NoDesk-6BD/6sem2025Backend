@@ -42,6 +42,22 @@ jobs:
         uses: actions/checkout@v4
 
 
+      - name: Carrega variáveis do .env para debug
+        run: |
+          if [ -f ./../.env ]; then
+            echo "Conteúdo do arquivo .env:"
+            cat ./../.env
+            echo ""
+            echo "Exportando variáveis do .env:"
+            set -o allexport
+            source ./../.env
+            set +o allexport
+            env | grep -Ff <(cut -d= -f1 ./../.env)
+          else
+            echo "Arquivo .env não encontrado em ./../.env."
+          fi
+
+
       - name: Atualiza pacotes
         run: sudo apt-get update || sudo apt-get upgrade -y
 
