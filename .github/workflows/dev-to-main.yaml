@@ -41,8 +41,10 @@ jobs:
       - name: Checkout do código
         uses: actions/checkout@v4
 
+
       - name: Atualiza pacotes
         run: sudo apt-get update || sudo apt-get upgrade -y
+
 
       - name: Instala client do PostgreSQL
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
@@ -51,7 +53,7 @@ jobs:
       - name: Configura Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"   # ajuste para a versão que seu projeto usa
+          python-version: "3.13"
 
 
       - name: Instala Poetry
