@@ -1,0 +1,28 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+      - id: debug-statements
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [ --fix=lf ]
+      - id: trailing-whitespace
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.11
+    hooks:
+      - id: ruff-check
+        args: [ --fix ]
+      - id: ruff-format
+  - repo: local
+    hooks:
+      - id: check-commit-msg
+        name: "Valida mensagem de commit"
+        language: system
+        entry: |
+          bash -c 'if ! grep -qE "^(feat|fix|doc|style|refactor|test|chore)[[:space:]]+\([a-zA-Z0-9-]+\):[[:space:]].+" "$1"; then echo -e "\nErro: A mensagem de commit não segue o padrão.\n\nFormato esperado: {tipo} ({chave_jira}): {descrição_curta}"; exit 1; fi'
+        args: [".git/COMMIT_EDITMSG"]
+        stages: [commit-msg]
