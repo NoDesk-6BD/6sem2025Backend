@@ -17,7 +17,6 @@ coverage.*
 htmlcov/
 
 # Environment
-.env
 .env/
 
 # Editor & IDEs
