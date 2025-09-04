@@ -1,69 +1,63 @@
 name: Pipeline
-
 on:
   push:
     branches:
       - main
   pull_request:
     types: [opened, synchronize, reopened]
-
+    
 jobs:
   configuracao-e-testes:
     runs-on: ubuntu-latest
-
     services:
-          postgres:
-            image: postgres:15
-            env:
-              POSTGRES_USER: seu_nome_de_usuario_como_criado
-              POSTGRES_PASSWORD: sua_senha_aleatoria_pessoal
-              POSTGRES_DB: nodesk
-            ports:
-              - 5432:5432
-            options: >-
-              --health-cmd="pg_isready -U seu_nome_de_usuario_como_criado -d nodesk"
-              --health-interval=10s
-              --health-timeout=5s
-              --health-retries=5
-          mongo:
-            image: mongo:6
-            ports:
-              - 27017:27017
-            options: >-
-              --health-cmd="mongosh --eval 'db.runCommand({ ping: 1 })'"
-              --health-interval=10s
-              --health-timeout=5s
-              --health-retries=5
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: seu_nome_de_usuario_como_criado
+          POSTGRES_PASSWORD: sua_senha_aleatoria_pessoal
+          POSTGRES_DB: nodesk
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U seu_nome_de_usuario_como_criado -d nodesk"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      mongo:
+        image: mongo:6
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd="mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
     steps:
-    
-      - name: Checkout do código
-        uses: actions/checkout@v4
-
-
       - name: Atualiza pacotes
         run: sudo apt-get update || sudo apt-get upgrade -y
+      
+      # 1. Clona o código
+      - name: Copia os arquivos do repo
+        uses: actions/checkout@v3
 
 
-      - name: Instala client do PostgreSQL
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
-
-
+      # 2. Configura o Python
       - name: Configura Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
-          python-version: "3.13"
-
-
+          python-version: "3.13"   # ajuste para a versão que seu projeto usa
+      
+      # 3. Instala Poetry
       - name: Instala Poetry
         run: |
           python -m pip install --upgrade pip
           pip install poetry
-
-
+      
+      # 4. Instala dependências
       - name: Instala dependências com Poetry
         run: poetry install
-
-
+      
+      # 5. Executa os testes com pytest
       - name: Executa pytest
         run: poetry run pytest --maxfail=1 --disable-warnings -q
