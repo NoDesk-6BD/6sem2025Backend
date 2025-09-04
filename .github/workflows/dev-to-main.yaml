@@ -10,21 +10,19 @@ jobs:
   configuracao-e-testes:
     runs-on: ubuntu-latest
 
-
     env:
       APP_NAME: ${{ secrets.APP_NAME }}
       APP_ENVIRONMENT: ${{ secrets.APP_ENVIRONMENT }}
       APP_VERSION: ${{ secrets.APP_VERSION }}
       APP_SECRET: ${{ secrets.APP_SECRET }}
+      POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
 
 
     services:
       postgres:
         image: postgres:15
-        env:
-          POSTGRES_USER: seu_nome_de_usuario_como_criado
-          POSTGRES_PASSWORD: sua_senha_aleatoria_pessoal
-          POSTGRES_DB: nodesk
         ports:
           - 5432:5432
         options: >-
