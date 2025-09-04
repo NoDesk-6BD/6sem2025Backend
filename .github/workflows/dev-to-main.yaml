@@ -39,12 +39,12 @@ jobs:
       
       # 1. Clona o código
       - name: Copia os arquivos do repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
 
 
       # 2. Configura o Python
       - name: Configura Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"   # ajuste para a versão que seu projeto usa
       
