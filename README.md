@@ -75,7 +75,6 @@ uvicorn nodesk:app --reload --port 8000
 
 * Os testes usam `httpx.AsyncClient` com `ASGITransport`, via **fixture** (`tests/conftest.py`).
 
-1. Rodar testes:
 
 ```bash
 pytest
@@ -85,13 +84,13 @@ pytest
 
 ## Qualidade de Código
 
-1. Formatar:
+#### 1. Formatar:
 
 ```bash
 ruff format .
 ```
 
-2. Lint (com autofix via pre-commit):
+#### 2. Lint (com autofix via pre-commit):
 
 ```bash
 ruff check .
