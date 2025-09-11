@@ -6,7 +6,7 @@
 
 # Backend - NoDesk - Pro4tech (API Fatec)
 
-Repositório backend da API para o 6º Semestre do curso de Banco de Dados da FATEC - São José dos Campos
+API backend repository for the 6th Semester of the Database course at FATEC - São José dos Campos
 
 <br>
 
@@ -16,15 +16,15 @@ Repositório backend da API para o 6º Semestre do curso de Banco de Dados da FA
 * **FastAPI** + **Uvicorn**
 * **pydantic-settings** (config via env/.env)
 * **pytest**, **httpx** (tests)
-* **ruff**, **pre-commit** (qualidade de código)
+* **ruff**, **pre-commit** (code quality)
 
 <br>
 
-## Instalação
+## Installation
 
-O arquivo `.env` contém variáveis de configuração (chaves, banco etc). Copie o `.env.example` e ajuste conforme necessário.
+The `.env` file contains configuration variables (keys, database, etc.). Copy the `.env.example` and adjust as needed.
 
-### 1. Instalar e preparar o ambiente:
+### 1. Install and prepare the environment:
 
 **Windows:**
 ```powershell
@@ -42,25 +42,25 @@ cp -n .env.example .env
 source .venv/bin/activate
 ```
 
-### 2. Instalar pre-commit hook:
+### 2. Install pre-commit hook:
 
 ```bash
 pre-commit install
 ```
 
-#### 2.1. Ativação do pre-commit:
+#### 2.1. Pre-commit activation:
 ```bash
 pre-commit install --hook-type commit-msg --hook-type pre-commit
 ```
 
-### 3. Gerar um APP_SECRET:
+### 3. Generate an APP_SECRET:
 ```bash
 python -c "import secrets; print(secrets.token_urlsafe(64))"
 ```
 
 <br>
 
-## Executando em desenvolvimento
+## Running in development
 
 ```bash
 uvicorn nodesk:app --reload --port 8000
@@ -71,9 +71,9 @@ uvicorn nodesk:app --reload --port 8000
 
 <br>
 
-## Testes (async + fixture)
+## Tests (async + fixture)
 
-* Os testes usam `httpx.AsyncClient` com `ASGITransport`, via **fixture** (`tests/conftest.py`).
+* Tests use `httpx.AsyncClient` with `ASGITransport`, via **fixture** (`tests/conftest.py`).
 
 
 ```bash
@@ -82,15 +82,15 @@ pytest
 
 <br>
 
-## Qualidade de Código
+## Code Quality
 
-#### 1. Formatar:
+#### 1. Format:
 
 ```bash
 ruff format .
 ```
 
-#### 2. Lint (com autofix via pre-commit):
+#### 2. Lint (with autofix via pre-commit):
 
 ```bash
 ruff check .
