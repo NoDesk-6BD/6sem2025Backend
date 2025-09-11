@@ -1,22 +1,22 @@
-### 📝 Descrição
-Breve explicação do que foi feito nesta PR.
+### 📝 Description
+Brief explanation of what was done in this PR.
 
-### 🔄 Alterações Realizadas
-- [ ] Nova funcionalidade
-- [ ] Correção de bug
-- [ ] Atualização de documentação
-- [ ] Refatoração
-- [ ] Outros:
+### 🔄 Changes Made
+- [ ] New feature
+- [ ] Bug fix
+- [ ] Documentation update
+- [ ] Refactoring
+- [ ] Other:
 
 ---
 
 ### ✅ Definition of Done (DoD)
-A PR só será considerada concluída se atender aos critérios abaixo:
+The PR will only be considered complete if it meets the following criteria:
 
-- [ ] Código revisado por pelo menos um membro da equipe.
-- [ ] Todos os testes existentes passaram com sucesso.
-- [ ] Novos testes foram criados (quando aplicável).
-- [ ] Documentação atualizada (se necessário).
-- [ ] Branch sem conflitos com a branch principal da sprint.
-- [ ] Pipeline de CI/CD executado com sucesso.
-- [ ] Critérios de aceitação da tarefa no Jira foram atendidos.
+- [ ] Code reviewed by at least one team member.
+- [ ] All existing tests passed successfully.
+- [ ] New tests were created (when applicable).
+- [ ] Documentation updated (if necessary).
+- [ ] Branch without conflicts with the sprint's main branch.
+- [ ] CI/CD pipeline executed successfully.
+- [ ] Jira issue acceptance criteria met.
