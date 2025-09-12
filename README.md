@@ -95,3 +95,32 @@ ruff format .
 ```bash
 ruff check .
 ```
+
+
+## Database
+
+Este projeto utiliza PostgreSQL com PostGIS para manipulação de dados geoespaciais.
+
+Execute os seguintes comandos para criar o banco de dados e configurar o usuário:
+```sh
+sudo -u postgres psql
+```
+
+No prompt do PostgreSQL, execute:
+
+```sql
+-- Criar o usuário
+CREATE USER nodesk WITH ENCRYPTED PASSWORD 'nodesk';
+
+-- Criar o banco de dados e definir o usuário como proprietário
+CREATE DATABASE nodesk OWNER nodesk;
+
+-- Saia do PostgreSQL
+\q
+```
+
+## Atualizando o banco de dados
+
+```sh
+alembic upgrade head
+```
