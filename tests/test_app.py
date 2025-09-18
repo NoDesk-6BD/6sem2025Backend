@@ -1,4 +1,3 @@
-
 import pytest
 
 from nodesk import app, settings

@@ -1,29 +1,21 @@
 import inspect
 import pkgutil
-from collections.abc import Iterator
 from importlib import import_module
-from types import ModuleType
 
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import NoInspectionAvailable
 from sqlalchemy.schema import MetaData
 
 
-def provide_metadata(
+def get_metadata(
     base_package: str = "nodesk",
     exclude_prefixes: tuple[str, ...] = (
         "nodesk.core",
         "nodesk.__pycache__",
     ),
 ) -> list[MetaData]:
-    """
-    Recursively import modules under `base_package`, find classes that look like
-    ORM models (structurally: have __tablename__), confirm they are actually
-    mapped via SQLAlchemy, and collect their registries' MetaData.
-    Returns a deduplicated list of MetaData objects (Alembic accepts a list).
-    """
-    metas: list[MetaData] = []
     seen: set[int] = set()
+    metadata_list: list[MetaData] = []
 
     pkg = import_module(base_package)
     for info in pkgutil.walk_packages(pkg.__path__, pkg.__name__ + "."):
@@ -44,9 +36,11 @@ def provide_metadata(
                 mapper = sa_inspect(obj)
             except NoInspectionAvailable:
                 continue
-            md = mapper.registry.metadata
-            if id(md) not in seen:
-                metas.append(md)
-                seen.add(id(md))
 
-    return metas
+            md = mapper.registry.metadata
+            md_id = id(md)
+            if md_id not in seen:
+                metadata_list.append(md)
+                seen.add(md_id)
+
+    return metadata_list

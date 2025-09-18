@@ -1,15 +1,15 @@
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from nodesk.core.database.metadata import provide_metadata
-from nodesk.core.settings import provide_settings
+from nodesk.core.database.metadata import get_metadata
+from nodesk.core.settings.sqlalchemy import SQLAlchemySettings
 
-settings = provide_settings()
+settings = SQLAlchemySettings()
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.SQLALCHEMY_DATABASE_URI)
 
-target_metadata = provide_metadata()
+target_metadata = get_metadata()
 
 
 def run_migrations_offline() -> None:
@@ -30,6 +30,7 @@ def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args={"options": "-c timezone=UTC"},
     )
 
     with connectable.connect() as connection:
