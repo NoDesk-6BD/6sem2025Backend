@@ -13,12 +13,13 @@ dmypy.json
 
 # Test & Coverage
 .pytest_cache/
-coverage.*
+.coverage
 htmlcov/
 
 # Environment
 .env
-.env/
+.env.*
+!.env.example
 
 # Editor & IDEs
 .idea/
