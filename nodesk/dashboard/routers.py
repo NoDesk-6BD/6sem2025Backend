@@ -10,22 +10,24 @@ import pandas as pd
 
 dashboard_router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
+
 @dashboard_router.get("/exemplo", response_model=List[dict])
 async def exemplo(db: AsyncIOMotorDatabase = Depends(get_mongo_db)):
     """
     Retorna os 3 primeiros documentos da collection tickets_evolution
     """
     collection = db["tickets_evolution"]
-    
+
     # Pega os 3 primeiros documentos
     dados = await collection.find().to_list(length=3)
-    
+
     # Converte os ObjectId para string
     for doc in dados:
         if "_id" in doc:
             doc["_id"] = str(doc["_id"])
-    
+
     return dados
+
 
 @dashboard_router.get(
     "/tickets_evolution",
@@ -35,7 +37,7 @@ async def exemplo(db: AsyncIOMotorDatabase = Depends(get_mongo_db)):
 async def get_tickets_evolution(
     db: AsyncIOMotorDatabase = Depends(get_mongo_db),
     start_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
-    end_date: Optional[str] = Query(None, description="YYYY-MM-DD")
+    end_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
 ):
     if not start_date or not end_date:
         end = datetime.today().date()
@@ -48,24 +50,26 @@ async def get_tickets_evolution(
 
     # Define granularidade
     if diff_days >= 120:
-        granularity = "M"   # mês
+        granularity = "M"  # mês
     elif diff_days >= 90:
         granularity = "2W"  # pares de semanas
     elif diff_days >= 30:
-        granularity = "W"   # semana
+        granularity = "W"  # semana
     elif diff_days >= 10:
         granularity = "2D"  # pares de dias
     else:
-        granularity = "D"   # dia
+        granularity = "D"  # dia
 
     # Busca os dados no Mongo
     collection = db["tickets_evolution"]
-    cursor = collection.find({
-        "date": {
-            "$gte": datetime.combine(start, datetime.min.time()),
-            "$lte": datetime.combine(end, datetime.max.time())
+    cursor = collection.find(
+        {
+            "date": {
+                "$gte": datetime.combine(start, datetime.min.time()),
+                "$lte": datetime.combine(end, datetime.max.time()),
+            }
         }
-    })
+    )
     docs = await cursor.to_list(length=None)
 
     # se não houver documentos, retorne no formato esperado pelo pydantic
@@ -73,13 +77,9 @@ async def get_tickets_evolution(
         return {"tickets_evolution": []}
 
     # Normaliza em DataFrame (cada coluna = uma categoria)
-    df = pd.DataFrame([
-        {
-            "date": pd.to_datetime(doc["date"]),
-            **doc["categories_count"]
-        }
-        for doc in docs
-    ]).set_index("date")
+    df = pd.DataFrame([{"date": pd.to_datetime(doc["date"]), **doc["categories_count"]} for doc in docs]).set_index(
+        "date"
+    )
 
     # Resample de acordo com granularidade (média para agregações maiores, diário mantém)
     if granularity in ["M", "W", "2W", "2D"]:
@@ -108,23 +108,41 @@ async def get_tickets_evolution(
         abscissa = [str(d.date()) for d in df_int.index]
 
     # Montar resposta no formato esperado por TicketsEvolutionResponse
-    result = {
-        "tickets_evolution": [
-            {
-                "name": categorias,
-                "count": counts,
-                "abscissa": abscissa
-            }
-        ]
-    }
+    result = {"tickets_evolution": [{"name": categorias, "count": counts, "abscissa": abscissa}]}
 
     return result
-    
 
 
-    
+@dashboard_router.get("/top_subcategories", status_code=status.HTTP_200_OK)
+async def top_subcategories(
+    db: AsyncIOMotorDatabase = Depends(get_mongo_db),
+    start_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
+):
+    end = datetime.today().date() if not end_date else datetime.strptime(end_date, "%Y-%m-%d").date()
+    start = end - relativedelta(days=60) if not start_date else datetime.strptime(start_date, "%Y-%m-%d").date()
 
+    collection = db["tickets_evolution"]
+    cursor = collection.find(
+        {
+            "date": {
+                "$gte": datetime.combine(start, datetime.min.time()),
+                "$lte": datetime.combine(end, datetime.max.time()),
+            }
+        }
+    )
+    docs = await cursor.to_list(length=None)
 
+    if not docs:
+        return []
 
+    subcategories_sum = {}
+    for doc in docs:
+        for subcat, count in doc.get("subcategories_count", {}).items():
+            subcategories_sum[subcat] = subcategories_sum.get(subcat, 0) + count
 
-   
+    top5 = sorted(subcategories_sum.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    result = [{"name": name, "count": count} for name, count in top5]
+
+    return result
