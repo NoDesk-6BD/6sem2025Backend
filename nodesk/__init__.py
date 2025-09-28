@@ -9,7 +9,7 @@ from .authentication.hashers import Argon2PasswordHasher
 from .authentication.protocols import PasswordHasherProtocol, TokenIssuerProtocol
 from .authentication.routers import authentication_router
 from .authentication.tokens import JWTTokenIssuer
-from .core.database.protocols import SQLAlchemySettingsProtocol
+from .core.database.protocols import SQLAlchemySettingsProtocol, MongoSettingsProtocol
 from .core.database.session import get_session
 from .core.di import provider_for
 from .core.settings import Settings
@@ -17,7 +17,7 @@ from .users.protocols import PasswordHasherProtocol as UsersPasswordHasherProtoc
 
 # Routers
 from .users.routers import users_router
-
+from .dashboard.routers import dashboard_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -31,6 +31,7 @@ async def lifespan(app: FastAPI):
     # Database and ORM
     if settings.APP_ENVIRONMENT != "testing":
         app.dependency_overrides[provider_for(SQLAlchemySettingsProtocol)] = lambda: settings
+        app.dependency_overrides[provider_for(MongoSettingsProtocol)] = lambda: settings
         app.dependency_overrides[provider_for(AsyncSession)] = get_session
 
     # Password Hasher
@@ -43,24 +44,24 @@ async def lifespan(app: FastAPI):
     app.dependency_overrides[provider_for(TokenIssuerProtocol)] = lambda: token_issuer
 
     # Bootstrap Administrator
-    if settings.APP_ENVIRONMENT != "testing":
-        async for session in get_session(settings):
-            from .users.models import User
+    # if settings.APP_ENVIRONMENT != "testing":
+    #     async for session in get_session(settings):
+    #         from .users.models import User
 
-            result = await session.execute(select(User).where(User.email == settings.ADMIN_EMAIL))
-            admin = result.scalar_one_or_none()
-            if admin:
-                break
-            admin = User(
-                email=settings.ADMIN_EMAIL,
-                encrypted_password=password_hasher.hash(settings.ADMIN_PASSWORD.get_secret_value()),
-                cpf=settings.ADMIN_CPF,
-                full_name="Administrator",
-                vip=True,
-                active=True,
-            )
-            session.add(admin)
-            await session.commit()
+    #         result = await session.execute(select(User).where(User.email == settings.ADMIN_EMAIL))
+    #         admin = result.scalar_one_or_none()
+    #         if admin:
+    #             break
+    #         admin = User(
+    #             email=settings.ADMIN_EMAIL,
+    #             encrypted_password=password_hasher.hash(settings.ADMIN_PASSWORD.get_secret_value()),
+    #             cpf=settings.ADMIN_CPF,
+    #             full_name="Administrator",
+    #             vip=True,
+    #             active=True,
+    #         )
+    #         session.add(admin)
+    #         await session.commit()
 
     yield
 
@@ -85,3 +86,5 @@ def health(
 # Routers
 app.include_router(users_router)
 app.include_router(authentication_router)
+app.include_router(dashboard_router)
+

@@ -4,8 +4,8 @@ from .base import BaseSettings
 
 
 class DatabaseSettings(BaseSettings):
-    DB_HOST: str = Field()
-    DB_PORT: int = Field()
-    DB_USER: str = Field()
-    DB_PASS: SecretStr = Field()
-    DB_NAME: str = Field()
+    DB_HOST_POSTGRES: str = Field()
+    DB_PORT_POSTGRES: int = Field()
+    DB_USER_POSTGRES: str = Field()
+    DB_PASS_POSTGRES: SecretStr = Field()
+    DB_NAME_POSTGRES: str = Field()

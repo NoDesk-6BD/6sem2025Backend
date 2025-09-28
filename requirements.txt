@@ -4,3 +4,13 @@ psycopg2-binary
 python-dotenv
 poetry
 pytest
+motor
+fastapi
+uvicorn
+sqlalchemy
+argon2-cffi
+pydantic[email]
+PyJWT
+pydantic_settings
+python-dateutil
+psycopg
