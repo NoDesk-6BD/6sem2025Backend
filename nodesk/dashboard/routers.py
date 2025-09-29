@@ -108,17 +108,18 @@ async def get_tickets_evolution(
         abscissa = [str(d.date()) for d in df_int.index]
 
     # Montar resposta no formato esperado por TicketsEvolutionResponse
-    result = {
-        "tickets_evolution": [
-            {
-                "name": categorias,
-                "count": counts,
-                "abscissa": abscissa
-            }
-        ]
-    }
+    result = []
 
-    return result
+    for i in range(len(categorias)):
+        result.append({
+            "name": categorias[i],
+            "count": counts[i],
+            "abscissa": abscissa
+        })
+
+    obj_result = {"itens": result}
+
+    return obj_result
     
 
 
