@@ -19,6 +19,9 @@ from .users.protocols import PasswordHasherProtocol as UsersPasswordHasherProtoc
 from .users.routers import users_router
 from .dashboard.routers import dashboard_router
 
+from fastapi.middleware.cors import CORSMiddleware
+origins = ["http://127.0.0.1:8000", "http://localhost:3000"]
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = Settings()
@@ -67,6 +70,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,      
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/")
