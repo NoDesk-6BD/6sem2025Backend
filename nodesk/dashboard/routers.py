@@ -141,8 +141,12 @@ async def top_subcategories(
         for subcat, count in doc.get("subcategories_count", {}).items():
             subcategories_sum[subcat] = subcategories_sum.get(subcat, 0) + count
 
-    top5 = sorted(subcategories_sum.items(), key=lambda x: x[1], reverse=True)[:5]
+    num_days = (end - start).days + 1
 
-    result = [{"name": name, "count": count} for name, count in top5]
+    subcategories_avg = {name: total / num_days for name, total in subcategories_sum.items()}
+
+    top5 = sorted(subcategories_avg.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    result = [{"name": name, "count": int(round(count))} for name, count in top5]
 
     return result
