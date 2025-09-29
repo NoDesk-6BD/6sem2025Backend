@@ -51,6 +51,8 @@ tests/                   # async API tests and fixtures
 
 The `.env` file holds configuration (secrets, database URI, admin bootstrap, etc.).
 
+### 0) Install pyenv, pipx
+
 ### 1) Create and activate the virtualenv, install deps
 
 Windows (PowerShell):

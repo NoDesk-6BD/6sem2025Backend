@@ -8,12 +8,14 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+
 from ..di import provider_for
-from .protocols import SQLAlchemySettingsProtocol
+from .protocols import SQLAlchemySettingsProtocol, MongoSettingsProtocol
 
 # Dependencies
 SQLAlchemySettings = Annotated[SQLAlchemySettingsProtocol, Depends(provider_for(SQLAlchemySettingsProtocol))]
-
+MongoSettings = Annotated[MongoSettingsProtocol, Depends(provider_for(MongoSettingsProtocol))]
 
 async def get_session(
     database_settings: SQLAlchemySettings,
@@ -28,3 +30,13 @@ async def get_session(
     async with sessionmaker() as session:
         yield session
     await engine.dispose()
+
+async def get_mongo_db(
+    mongo_settings: MongoSettings,
+) -> AsyncIterator[AsyncIOMotorDatabase]:
+    client = AsyncIOMotorClient(mongo_settings.MONGO_URI)
+    db = client[mongo_settings.MONGO_DB]
+    try:
+        yield db
+    finally:
+        client.close()
