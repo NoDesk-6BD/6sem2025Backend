@@ -113,7 +113,7 @@ async def get_tickets_evolution(
     return result
 
 
-@dashboard_router.get("/top_subcategories", status_code=status.HTTP_200_OK)
+@dashboard_router.get("/categories", status_code=status.HTTP_200_OK)
 async def top_subcategories(
     db: AsyncIOMotorDatabase = Depends(get_mongo_db),
     start_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
