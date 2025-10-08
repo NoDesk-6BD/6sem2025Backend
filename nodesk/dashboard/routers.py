@@ -1,10 +1,10 @@
-from fastapi import APIRouter, status, Depends, Query
+from fastapi import APIRouter, status, Depends, Query, HTTPException
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from typing import List, Optional
 
 from ..core.database.session import get_mongo_db
-from nodesk.dashboard.schemas import TicketsEvolutionResponse
+from nodesk.dashboard.schemas import CriticalProjectsSnapshot, TicketsEvolutionResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import pandas as pd
 
@@ -155,3 +155,64 @@ async def top_subcategories(
     result = [{"name": name, "count": int(round(count))} for name, count in top5]
 
     return result
+
+
+@dashboard_router.get(
+    "/critical_projects",
+    response_model=List[CriticalProjectsSnapshot],
+    status_code=status.HTTP_200_OK,
+)
+async def get_critical_projects(
+    db: AsyncIOMotorDatabase = Depends(get_mongo_db),
+    start: Optional[str] = Query(None, description="ISO 8601 datetime inclusive lower bound"),
+    end: Optional[str] = Query(None, description="ISO 8601 datetime inclusive upper bound"),
+):
+    def parse_iso(value: str) -> datetime:
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid datetime format: {value}",
+            ) from exc
+
+    filters: dict[str, dict[str, datetime]] = {}
+
+    if start or end:
+        parsed_start = parse_iso(start) if start else None
+        parsed_end = parse_iso(end) if end else None
+
+        if parsed_start and parsed_end and parsed_start > parsed_end:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="start must be before or equal to end",
+            )
+
+        generated_range: dict[str, datetime] = {}
+        if parsed_start:
+            generated_range["$gte"] = parsed_start
+        if parsed_end:
+            generated_range["$lte"] = parsed_end
+        filters["generated_at"] = generated_range
+
+    collection = db["critical_projects"]
+    documents: List[dict] = []
+
+    if filters:
+        cursor = collection.find(filters).sort("generated_at", -1)
+        documents = await cursor.to_list(length=None)
+
+        if not documents:
+            return []
+    else:
+        document = await collection.find_one(sort=[("generated_at", -1)])
+
+        if not document:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No critical project data found")
+
+        documents = [document]
+
+    for doc in documents:
+        doc["id"] = str(doc.pop("_id"))
+
+    return documents

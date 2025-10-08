@@ -17,6 +17,7 @@ from .protocols import SQLAlchemySettingsProtocol, MongoSettingsProtocol
 SQLAlchemySettings = Annotated[SQLAlchemySettingsProtocol, Depends(provider_for(SQLAlchemySettingsProtocol))]
 MongoSettings = Annotated[MongoSettingsProtocol, Depends(provider_for(MongoSettingsProtocol))]
 
+
 async def get_session(
     database_settings: SQLAlchemySettings,
 ) -> AsyncIterator[AsyncSession]:
@@ -30,6 +31,7 @@ async def get_session(
     async with sessionmaker() as session:
         yield session
     await engine.dispose()
+
 
 async def get_mongo_db(
     mongo_settings: MongoSettings,
