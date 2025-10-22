@@ -1,0 +1,170 @@
+x-nodesk-environment: &nodesk-environment
+  APP_NAME: nodesk
+  APP_VERSION: "0.0.0"
+  APP_ENVIRONMENT: development
+  APP_SECRET: changeme
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_USER: nodesk
+  DB_PASS: nodesk
+  DB_NAME: nodesk
+  MSSQL_HOST: sqlserver
+  MSSQL_PORT: "1433"
+  MSSQL_USER: sa
+  MSSQL_PASSWORD: Nodesk!2025
+  MSSQL_DATABASE: nodesk
+  MSSQL_DRIVER: "ODBC Driver 18 for SQL Server"
+  MSSQL_ENCRYPT: "true"
+  MSSQL_TRUST_SERVER_CERTIFICATE: "true"
+  MONGO_URI: "mongodb://nodesk:nodesk@mongo:27017/?authSource=admin"
+  MONGO_DB: nodesk
+  MONGO_INITDB_ROOT_USERNAME: nodesk
+  MONGO_INITDB_ROOT_PASSWORD: nodesk
+  ADMIN_EMAIL: admin@nodesk.com
+  ADMIN_PASSWORD: "Abcd1234*"
+  ADMIN_CPF: "12345678901"
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: nodesk-sqlserver
+    environment:
+      <<: *nodesk-environment
+      ACCEPT_EULA: "Y"
+      TZ: UTC
+      MSSQL_PID: Express
+      MSSQL_SA_PASSWORD: Nodesk!2025
+    ports:
+      - "1434:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"Nodesk!2025\" -Q \"SELECT 1\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  importer:
+    build:
+      dockerfile: importer.Dockerfile
+    container_name: nodesk-importer
+    environment:
+      <<: *nodesk-environment
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    volumes:
+      - ./data:/data:ro
+    command:
+      - /opt/sqlpackage/sqlpackage
+      - /Action:Import
+      - /SourceFile:/data/backup.bacpac
+      - /TargetServerName:sqlserver,1433
+      - /TargetUser:sa
+      - /TargetPassword:Nodesk!2025
+      - /TargetDatabaseName:nodesk
+      - /TargetEncryptConnection:True
+      - /TargetTrustServerCertificate:True
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nodesk-api
+    environment:
+      <<: *nodesk-environment
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_started
+      alembic:
+        condition: service_completed_successfully
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  etl:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nodesk-etl
+    environment:
+      <<: *nodesk-environment
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      mongo:
+        condition: service_started
+      alembic:
+        condition: service_completed_successfully
+    command:
+      - python
+      - -m
+      - nodesk.etl.pipelines.run_all_pipelines
+    restart: "no"
+
+  alembic:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nodesk-alembic
+    environment:
+      <<: *nodesk-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - alembic
+      - -c
+      - pyproject.toml
+      - upgrade
+      - head
+    restart: "no"
+
+  postgres:
+    image: postgres
+    container_name: nodesk-postgres
+    environment:
+      <<: *nodesk-environment
+      POSTGRES_DB: nodesk
+      POSTGRES_USER: nodesk
+      POSTGRES_PASSWORD: nodesk
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nodesk -d nodesk"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongo:
+    image: mongo
+    container_name: nodesk-mongo
+    environment:
+      <<: *nodesk-environment
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test:
+        ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok", "mongodb://nodesk:nodesk@localhost:27017/admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  sqlserver_data:
+  postgres_data:
+  mongo_data:

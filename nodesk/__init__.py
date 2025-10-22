@@ -5,6 +5,7 @@ from fastapi import Depends, FastAPI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .authentication.services import AuthenticationService
 from .authentication.hashers import Argon2PasswordHasher
 from .authentication.protocols import PasswordHasherProtocol, TokenIssuerProtocol
 from .authentication.routers import authentication_router
@@ -47,6 +48,9 @@ async def lifespan(app: FastAPI):
     # Token Issuer
     token_issuer = JWTTokenIssuer(secret=settings.APP_SECRET.get_secret_value())
     app.dependency_overrides[provider_for(TokenIssuerProtocol)] = lambda: token_issuer
+
+    # Authentication
+    app.dependency_overrides[provider_for(AuthenticationService)] = AuthenticationService
 
     # Bootstrap Administrator
     if settings.APP_ENVIRONMENT != "testing":
