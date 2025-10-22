@@ -1,6 +1,5 @@
 from datetime import datetime
-
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, func, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column, registry, relationship
 
 table_registry = registry()
@@ -10,19 +9,15 @@ table_registry = registry()
 class User:
     __tablename__ = "users"
 
-    # Required
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
     email: Mapped[str] = mapped_column(String(255), index=True, unique=True, nullable=False)
     encrypted_password: Mapped[str] = mapped_column(String(255), nullable=False)
     cpf: Mapped[str] = mapped_column(String(11), unique=True, nullable=False)
-
-    # Optional
     full_name: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
     phone: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
     vip: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
 
-    # Relationships
     created_by_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
@@ -48,7 +43,6 @@ class User:
         init=False,
     )
 
-    # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -62,3 +56,31 @@ class User:
         nullable=False,
         init=False,
     )
+
+
+@table_registry.mapped_as_dataclass(kw_only=True)
+class TermsOfUse:
+    __tablename__ = "terms_of_use"
+
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    version: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    acceptances: Mapped[list["TermsAcceptance"]] = relationship(
+        "TermsAcceptance", back_populates="terms", cascade="all, delete-orphan"
+    )
+
+
+@table_registry.mapped_as_dataclass(kw_only=True)
+class TermsAcceptance:
+    __tablename__ = "terms_acceptance"
+
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    terms_id: Mapped[int] = mapped_column(ForeignKey("terms_of_use.id"), nullable=False)
+    accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)  # IPv4 ou IPv6
+
+    terms: Mapped["TermsOfUse"] = relationship("TermsOfUse", back_populates="acceptances")
+    user: Mapped["User"] = relationship("User")
