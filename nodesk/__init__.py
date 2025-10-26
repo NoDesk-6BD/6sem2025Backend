@@ -19,6 +19,7 @@ from .users.protocols import PasswordHasherProtocol as UsersPasswordHasherProtoc
 # Routers
 from .users.routers import users_router
 from .dashboard.routers import dashboard_router
+from .terms.routers import terms_router
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -104,3 +105,4 @@ def health(
 app.include_router(users_router)
 app.include_router(authentication_router)
 app.include_router(dashboard_router)
+app.include_router(terms_router)
