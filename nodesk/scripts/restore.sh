@@ -21,7 +21,7 @@ LOG_FILE="$LOG_DIR/restore_final_$TIMESTAMP.log"
 
 # --- Lista backups disponíveis ---
 echo "📂 Backups disponíveis em: $BACKUP_DIR"
-mapfile -t BACKUPS < <(ls -1 "$BACKUP_DIR"/*.gpg 2>/dev/null)
+mapfile -t BACKUPS < <(ls -1 "$BACKUP_DIR/backups"/*.gpg 2>/dev/null)
 if [ ${#BACKUPS[@]} -eq 0 ]; then
     echo "❌ Nenhum backup encontrado em $BACKUP_DIR" | tee -a "$LOG_FILE"
     exit 1
