@@ -1,6 +1,7 @@
 from datetime import datetime
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, func, text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text, UniqueConstraint, func, text
 from sqlalchemy.orm import Mapped, mapped_column, registry, relationship
+from typing import List, Optional
 
 table_registry = registry()
 
@@ -12,7 +13,7 @@ class User:
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
     email: Mapped[str] = mapped_column(String(255), index=True, unique=True, nullable=False)
     encrypted_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    cpf: Mapped[str] = mapped_column(String(11), unique=True, nullable=False)
+    cpf: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     full_name: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
     phone: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
     vip: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
@@ -59,28 +60,63 @@ class User:
 
 
 @table_registry.mapped_as_dataclass(kw_only=True)
+class UserKey:
+    __tablename__ = "user_keys"
+
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
+    aes_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    iv: Mapped[str] = mapped_column(String(64), nullable=False)
+    algorithm: Mapped[str] = mapped_column(String(50), default="AES-256-CBC", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        init=False,
+    )
+
+
+class TermType(str, Enum):
+    REQUIRED = "required"  # termos obrigatórios para uso da plataforma
+    OPTIONAL = "optional"  # termos opcionais, como marketing
+
+
+@table_registry.mapped_as_dataclass(kw_only=True)
 class TermsOfUse:
     __tablename__ = "terms_of_use"
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
     version: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    type: Mapped[TermType] = mapped_column(String(20), nullable=False, default=TermType.REQUIRED)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, init=False
+    )
 
-    acceptances: Mapped[list["TermsAcceptance"]] = relationship(
-        "TermsAcceptance", back_populates="terms", cascade="all, delete-orphan"
+    acceptances: Mapped[List["TermsAcceptance"]] = relationship(
+        "TermsAcceptance",
+        back_populates="terms",
+        cascade="all, delete-orphan",
+        default_factory=list,
+        init=False,
     )
 
 
 @table_registry.mapped_as_dataclass(kw_only=True)
 class TermsAcceptance:
     __tablename__ = "terms_acceptance"
+    __table_args__ = (UniqueConstraint("user_id", "terms_id", name="uix_user_terms"),)  # evita aceite duplicado
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     terms_id: Mapped[int] = mapped_column(ForeignKey("terms_of_use.id"), nullable=False)
-    accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)  # IPv4 ou IPv6
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+    accepted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        init=False,
+    )
 
-    terms: Mapped["TermsOfUse"] = relationship("TermsOfUse", back_populates="acceptances")
-    user: Mapped["User"] = relationship("User")
+    user: Mapped[Optional["User"]] = relationship("User", init=False)
+    terms: Mapped[Optional["TermsOfUse"]] = relationship("TermsOfUse", back_populates="acceptances", init=False)
