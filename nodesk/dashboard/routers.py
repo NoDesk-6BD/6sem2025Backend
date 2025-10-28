@@ -38,6 +38,7 @@ async def get_tickets_evolution(
     db: AsyncIOMotorDatabase = Depends(get_mongo_db),
     start_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
     end_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    subcategories: bool = Query(False, description="Exibir dados por subcategorias?"),
 ):
     if not start_date or not end_date:
         end = datetime.today().date()
@@ -76,10 +77,15 @@ async def get_tickets_evolution(
     if not docs:
         return {"tickets_evolution": []}
 
-    # Normaliza em DataFrame (cada coluna = uma categoria)
-    df = pd.DataFrame([{"date": pd.to_datetime(doc["date"]), **doc["categories_count"]} for doc in docs]).set_index(
-        "date"
-    )
+    # Normaliza em DataFrame (cada coluna = uma categoria/subcategoria)
+
+    df = pd.DataFrame([
+        {
+            "date": pd.to_datetime(doc["date"]),
+            **(doc["subcategories_count"] if subcategories else doc["categories_count"])
+        }
+        for doc in docs
+    ]).set_index("date")
 
     # Resample de acordo com granularidade (média para agregações maiores, diário mantém)
     if granularity in ["M", "W", "2W", "2D"]:
