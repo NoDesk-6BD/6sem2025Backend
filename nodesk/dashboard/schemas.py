@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -26,3 +26,9 @@ class CriticalProjectsSnapshot(BaseModel):
     limit: int
     open_status_ids: List[int]
     rows: List[CriticalProjectRow]
+
+
+class TotalExpiredTicketsResponse(BaseModel):
+    generated_at: Optional[datetime] = None
+    total_expired_tickets: int
+    open_status_ids: List[int]
