@@ -4,11 +4,18 @@ from dateutil.relativedelta import relativedelta
 from typing import List, Optional
 
 from ..core.database.session import get_mongo_db
-from nodesk.dashboard.schemas import CriticalProjectsSnapshot, TicketsEvolutionResponse
+from nodesk.dashboard.schemas import (
+    CriticalProjectsSnapshot,
+    TicketsEvolutionResponse,
+    TotalExpiredTicketsResponse,
+)
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import pandas as pd
 
 dashboard_router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+EXPIRED_TICKETS_COLLECTION = "expired_tickets_totals"
+EXPIRED_TICKETS_DEFAULT_STATUS = [1, 2, 3]
 
 
 @dashboard_router.get("/exemplo", response_model=List[dict])
@@ -79,13 +86,15 @@ async def get_tickets_evolution(
 
     # Normaliza em DataFrame (cada coluna = uma categoria/subcategoria)
 
-    df = pd.DataFrame([
-        {
-            "date": pd.to_datetime(doc["date"]),
-            **(doc["subcategories_count"] if subcategories else doc["categories_count"])
-        }
-        for doc in docs
-    ]).set_index("date")
+    df = pd.DataFrame(
+        [
+            {
+                "date": pd.to_datetime(doc["date"]),
+                **(doc["subcategories_count"] if subcategories else doc["categories_count"]),
+            }
+            for doc in docs
+        ]
+    ).set_index("date")
 
     # Resample de acordo com granularidade (média para agregações maiores, diário mantém)
     if granularity in ["M", "W", "2W", "2D"]:
@@ -122,6 +131,40 @@ async def get_tickets_evolution(
     obj_result = {"itens": result}
 
     return obj_result
+
+
+@dashboard_router.get(
+    "/total_expired_tickets",
+    response_model=TotalExpiredTicketsResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_total_expired_tickets(
+    db: AsyncIOMotorDatabase = Depends(get_mongo_db),
+) -> TotalExpiredTicketsResponse:
+    collection = db[EXPIRED_TICKETS_COLLECTION]
+    doc = await collection.find_one(sort=[("generated_at", -1)])
+
+    if not doc:
+        return TotalExpiredTicketsResponse(
+            generated_at=None,
+            total_expired_tickets=0,
+            open_status_ids=EXPIRED_TICKETS_DEFAULT_STATUS,
+        )
+
+    generated_at = doc.get("generated_at")
+    if isinstance(generated_at, str):
+        try:
+            doc["generated_at"] = datetime.fromisoformat(generated_at)
+        except ValueError:
+            doc["generated_at"] = None
+
+    doc.pop("_id", None)
+
+    return TotalExpiredTicketsResponse(
+        generated_at=doc.get("generated_at"),
+        total_expired_tickets=int(doc.get("total_expired_tickets", 0)),
+        open_status_ids=list(doc.get("open_status_ids", EXPIRED_TICKETS_DEFAULT_STATUS)),
+    )
 
 
 @dashboard_router.get("/categories", status_code=status.HTTP_200_OK)
