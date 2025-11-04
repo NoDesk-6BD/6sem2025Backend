@@ -13,10 +13,10 @@ class SQLAlchemySettings(BaseSettings):
     def SQLALCHEMY_DATABASE_URI(self) -> str:
         url = URL.create(
             drivername="postgresql+psycopg",
-            username=self.DB_USER_POSTGRES,
-            password=self.DB_PASS_POSTGRES.get_secret_value(),
-            host=self.DB_HOST_POSTGRES,
-            port=self.DB_PORT_POSTGRES,
-            database=self.DB_NAME_POSTGRES,
+            username=self.DB_USER,
+            password=self.DB_PASS.get_secret_value(),
+            host=self.DB_HOST,
+            port=self.DB_PORT,
+            database=self.DB_NAME,
         )
         return url.render_as_string(hide_password=False)

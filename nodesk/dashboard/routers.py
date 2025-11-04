@@ -1,14 +1,21 @@
-from fastapi import APIRouter, status, Depends, Query
+from fastapi import APIRouter, status, Depends, Query, HTTPException
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from typing import List, Optional
 
 from ..core.database.session import get_mongo_db
-from nodesk.dashboard.schemas import TicketsEvolutionResponse
+from nodesk.dashboard.schemas import (
+    CriticalProjectsSnapshot,
+    TicketsEvolutionResponse,
+    TotalExpiredTicketsResponse,
+)
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import pandas as pd
 
 dashboard_router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+EXPIRED_TICKETS_COLLECTION = "expired_tickets_totals"
+EXPIRED_TICKETS_DEFAULT_STATUS = [1, 2, 3]
 
 
 @dashboard_router.get("/exemplo", response_model=List[dict])
@@ -38,6 +45,7 @@ async def get_tickets_evolution(
     db: AsyncIOMotorDatabase = Depends(get_mongo_db),
     start_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
     end_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    subcategories: bool = Query(False, description="Exibir dados por subcategorias?"),
 ):
     if not start_date or not end_date:
         end = datetime.today().date()
@@ -76,10 +84,17 @@ async def get_tickets_evolution(
     if not docs:
         return {"tickets_evolution": []}
 
-    # Normaliza em DataFrame (cada coluna = uma categoria)
-    df = pd.DataFrame([{"date": pd.to_datetime(doc["date"]), **doc["categories_count"]} for doc in docs]).set_index(
-        "date"
-    )
+    # Normaliza em DataFrame (cada coluna = uma categoria/subcategoria)
+
+    df = pd.DataFrame(
+        [
+            {
+                "date": pd.to_datetime(doc["date"]),
+                **(doc["subcategories_count"] if subcategories else doc["categories_count"]),
+            }
+            for doc in docs
+        ]
+    ).set_index("date")
 
     # Resample de acordo com granularidade (média para agregações maiores, diário mantém)
     if granularity in ["M", "W", "2W", "2D"]:
@@ -116,6 +131,40 @@ async def get_tickets_evolution(
     obj_result = {"itens": result}
 
     return obj_result
+
+
+@dashboard_router.get(
+    "/total_expired_tickets",
+    response_model=TotalExpiredTicketsResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_total_expired_tickets(
+    db: AsyncIOMotorDatabase = Depends(get_mongo_db),
+) -> TotalExpiredTicketsResponse:
+    collection = db[EXPIRED_TICKETS_COLLECTION]
+    doc = await collection.find_one(sort=[("generated_at", -1)])
+
+    if not doc:
+        return TotalExpiredTicketsResponse(
+            generated_at=None,
+            total_expired_tickets=0,
+            open_status_ids=EXPIRED_TICKETS_DEFAULT_STATUS,
+        )
+
+    generated_at = doc.get("generated_at")
+    if isinstance(generated_at, str):
+        try:
+            doc["generated_at"] = datetime.fromisoformat(generated_at)
+        except ValueError:
+            doc["generated_at"] = None
+
+    doc.pop("_id", None)
+
+    return TotalExpiredTicketsResponse(
+        generated_at=doc.get("generated_at"),
+        total_expired_tickets=int(doc.get("total_expired_tickets", 0)),
+        open_status_ids=list(doc.get("open_status_ids", EXPIRED_TICKETS_DEFAULT_STATUS)),
+    )
 
 
 @dashboard_router.get("/categories", status_code=status.HTTP_200_OK)
@@ -155,3 +204,64 @@ async def top_subcategories(
     result = [{"name": name, "count": int(round(count))} for name, count in top5]
 
     return result
+
+
+@dashboard_router.get(
+    "/critical_projects",
+    response_model=List[CriticalProjectsSnapshot],
+    status_code=status.HTTP_200_OK,
+)
+async def get_critical_projects(
+    db: AsyncIOMotorDatabase = Depends(get_mongo_db),
+    start: Optional[str] = Query(None, description="ISO 8601 datetime inclusive lower bound"),
+    end: Optional[str] = Query(None, description="ISO 8601 datetime inclusive upper bound"),
+):
+    def parse_iso(value: str) -> datetime:
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid datetime format: {value}",
+            ) from exc
+
+    filters: dict[str, dict[str, datetime]] = {}
+
+    if start or end:
+        parsed_start = parse_iso(start) if start else None
+        parsed_end = parse_iso(end) if end else None
+
+        if parsed_start and parsed_end and parsed_start > parsed_end:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="start must be before or equal to end",
+            )
+
+        generated_range: dict[str, datetime] = {}
+        if parsed_start:
+            generated_range["$gte"] = parsed_start
+        if parsed_end:
+            generated_range["$lte"] = parsed_end
+        filters["generated_at"] = generated_range
+
+    collection = db["critical_projects"]
+    documents: List[dict] = []
+
+    if filters:
+        cursor = collection.find(filters).sort("generated_at", -1)
+        documents = await cursor.to_list(length=None)
+
+        if not documents:
+            return []
+    else:
+        document = await collection.find_one(sort=[("generated_at", -1)])
+
+        if not document:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No critical project data found")
+
+        documents = [document]
+
+    for doc in documents:
+        doc["id"] = str(doc.pop("_id"))
+
+    return documents

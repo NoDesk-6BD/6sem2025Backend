@@ -5,6 +5,7 @@ from fastapi import Depends, FastAPI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .authentication.services import AuthenticationService
 from .authentication.hashers import Argon2PasswordHasher
 from .authentication.protocols import PasswordHasherProtocol, TokenIssuerProtocol
 from .authentication.routers import authentication_router
@@ -18,9 +19,12 @@ from .users.protocols import PasswordHasherProtocol as UsersPasswordHasherProtoc
 # Routers
 from .users.routers import users_router
 from .dashboard.routers import dashboard_router
+from .terms.routers import terms_router
 
 from fastapi.middleware.cors import CORSMiddleware
+
 origins = ["http://127.0.0.1:8000", "http://localhost:3000"]
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -46,25 +50,28 @@ async def lifespan(app: FastAPI):
     token_issuer = JWTTokenIssuer(secret=settings.APP_SECRET.get_secret_value())
     app.dependency_overrides[provider_for(TokenIssuerProtocol)] = lambda: token_issuer
 
-    # Bootstrap Administrator
-    # if settings.APP_ENVIRONMENT != "testing":
-    #     async for session in get_session(settings):
-    #         from .users.models import User
+    # Authentication
+    app.dependency_overrides[provider_for(AuthenticationService)] = AuthenticationService
 
-    #         result = await session.execute(select(User).where(User.email == settings.ADMIN_EMAIL))
-    #         admin = result.scalar_one_or_none()
-    #         if admin:
-    #             break
-    #         admin = User(
-    #             email=settings.ADMIN_EMAIL,
-    #             encrypted_password=password_hasher.hash(settings.ADMIN_PASSWORD.get_secret_value()),
-    #             cpf=settings.ADMIN_CPF,
-    #             full_name="Administrator",
-    #             vip=True,
-    #             active=True,
-    #         )
-    #         session.add(admin)
-    #         await session.commit()
+    # Bootstrap Administrator
+    if settings.APP_ENVIRONMENT != "testing":
+        async for session in get_session(settings):
+            from .users.models import User
+
+            result = await session.execute(select(User).where(User.email == settings.ADMIN_EMAIL))
+            admin = result.scalar_one_or_none()
+            if admin:
+                break
+            admin = User(
+                email=settings.ADMIN_EMAIL,
+                encrypted_password=password_hasher.hash(settings.ADMIN_PASSWORD.get_secret_value()),
+                cpf=settings.ADMIN_CPF,
+                full_name="Administrator",
+                vip=True,
+                active=True,
+            )
+            session.add(admin)
+            await session.commit()
 
     yield
 
@@ -73,7 +80,7 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,      
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -98,4 +105,4 @@ def health(
 app.include_router(users_router)
 app.include_router(authentication_router)
 app.include_router(dashboard_router)
-
+app.include_router(terms_router)
