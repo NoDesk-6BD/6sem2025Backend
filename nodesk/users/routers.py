@@ -7,9 +7,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
 )
+from nodesk.core.database.session import get_session
+from nodesk.users.service import create_user_secure, get_user_decrypted
+from nodesk.users.service_encrypt import EncryptionService  # função que implementamos antes
+
 
 from ..core.di import provider_for
-from .models import User
+from .models import User, UserKey
 from .protocols import PasswordHasherProtocol
 from .schemas import CreateUserRequest, UpdateUserRequest, UserResponse
 
@@ -21,54 +25,41 @@ Session = Annotated[AsyncSession, Depends(provider_for(AsyncSession))]
 users_router = APIRouter(prefix="/users", tags=["users"])
 
 
-@users_router.post(
-    "/",
-    response_model=UserResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_user(
-    payload: CreateUserRequest,
-    session: Session,
-    hasher: PasswordHasher,
-) -> UserResponse:
+@users_router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def create_user(payload: CreateUserRequest, session: Session, hasher: PasswordHasher) -> UserResponse:
     email = payload.email.strip().lower()
     cpf_digits = re.sub(r"\D", "", payload.cpf)
 
-    user = User(
-        email=email,
-        encrypted_password=hasher.hash(payload.password),
-        full_name=payload.full_name,
-        phone=payload.phone,
-        cpf=cpf_digits,
-        vip=payload.vip,
-        active=True,
-        created_by_id=None,
-        updated_by_id=None,
-    )
-    session.add(user)
     try:
-        await session.commit()
+        user = await create_user_secure(
+            session=session,
+            email=email,
+            cpf=cpf_digits,
+            full_name=payload.full_name,
+            phone=payload.phone,
+            password_hash=hasher.hash(payload.password),
+            vip=payload.vip,
+        )
     except IntegrityError as e:
         await session.rollback()
-        raise HTTPException(
-            status_code=409,
-            detail="E-mail or CPF already exists",
-        ) from e
+        raise HTTPException(status_code=409, detail="E-mail or CPF already exists") from e
 
-    await session.refresh(user)
-    return UserResponse.model_validate(user, from_attributes=True)
+    user_data = await get_user_decrypted(session, user.id)
+
+    return UserResponse.model_validate(user_data)
 
 
 @users_router.get("/", response_model=list[UserResponse])
-async def list_users(
-    session: Session,
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
-) -> list[UserResponse]:
+async def list_users(session: Session, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
     stmt = select(User).order_by(User.created_at.desc()).offset(offset).limit(limit)
     res = await session.execute(stmt)
-    items = res.scalars().all()
-    return [UserResponse.model_validate(u, from_attributes=True) for u in items]
+    users = res.scalars().all()
+    result = []
+    for user in users:
+        decrypted = await get_user_decrypted(session, user.id)
+        if decrypted:
+            result.append(decrypted)
+    return result
 
 
 @users_router.get("/{user_id}", response_model=UserResponse)
@@ -76,10 +67,15 @@ async def get_user(
     user_id: int,
     session: Session,
 ) -> UserResponse:
-    user = await session.get(User, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return UserResponse.model_validate(user, from_attributes=True)
+    print(f"Vai entrar get_user_decrypted(user_id={user_id})")
+
+    user_data = await get_user_decrypted(session, user_id)
+    print(f"Saiu em get_user_decrypted(user_id={user_id})")
+
+    if not user_data:
+        raise HTTPException(status_code=404, detail="User not found or missing encryption key")
+
+    return UserResponse.model_validate(user_data)
 
 
 @users_router.put(
@@ -90,85 +86,76 @@ async def get_user(
 async def update_user(
     user_id: int,
     payload: UpdateUserRequest,
-    session: Session,
+    session: AsyncSession = Depends(get_session),
 ) -> UserResponse:
+    user_data = await get_user_decrypted(session, user_id)
+    if not user_data:
+        raise HTTPException(status_code=404, detail="User not found or missing encryption key")
+
     user = await session.get(User, user_id)
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+    user_key = await session.scalar(select(UserKey).where(UserKey.user_id == user_id))
+    key, iv = user_key.aes_key, user_key.iv
 
     data = payload.model_dump(exclude_unset=True)
     if not data:
-        return UserResponse.model_validate(user, from_attributes=True)
+        return UserResponse.model_validate(user_data)
 
-    # Normalize
     if "email" in data and data["email"] is not None:
         data["email"] = data["email"].strip().lower()
-
     if "cpf" in data and data["cpf"] is not None:
         digits = re.sub(r"\D", "", data["cpf"])
         if len(digits) != 11:
-            raise HTTPException(
-                status_code=422,
-                detail="CPF must contain 11 digits",
-            )
+            raise HTTPException(status_code=422, detail="CPF must contain 11 digits")
         data["cpf"] = digits
 
-    # Early unique checks for clearer 409s
-    if "email" in data and data["email"] != user.email:
-        exists = await session.scalar(
-            select(User.id).where(
-                User.email == data["email"],
-                User.id != user_id,
-            )
-        )
+    if "email" in data and data["email"] != user_data["email"]:
+        exists = await session.scalar(select(User.id).where(User.email == data["email"], User.id != user_id))
         if exists:
-            raise HTTPException(
-                status_code=409,
-                detail="E-mail already exists",
-            )
+            raise HTTPException(status_code=409, detail="E-mail already exists")
 
-    if "cpf" in data and data["cpf"] != user.cpf:
-        exists = await session.scalar(
-            select(User.id).where(
-                User.cpf == data["cpf"],
-                User.id != user_id,
-            )
-        )
+    if "cpf" in data and data["cpf"] != user_data["cpf"]:
+        exists = await session.scalar(select(User.id).where(User.cpf == data["cpf"], User.id != user_id))
         if exists:
-            raise HTTPException(
-                status_code=409,
-                detail="CPF already exists",
-            )
+            raise HTTPException(status_code=409, detail="CPF already exists")
 
-    # Apply changes
-    for field, value in data.items():
-        setattr(user, field, value)
+    if "email" in data:
+        user.email = EncryptionService.encrypt(data["email"], key, iv)
+        user_data["email"] = data["email"]
+    if "cpf" in data:
+        user.cpf = EncryptionService.encrypt(data["cpf"], key, iv)
+        user_data["cpf"] = data["cpf"]
+    if "full_name" in data:
+        user.full_name = EncryptionService.encrypt(data["full_name"], key, iv)
+        user_data["full_name"] = data["full_name"]
+    if "phone" in data:
+        user.phone = EncryptionService.encrypt(data["phone"], key, iv)
+        user_data["phone"] = data["phone"]
+
+    if "vip" in data:
+        user.vip = data["vip"]
+        user_data["vip"] = data["vip"]
+    if "active" in data:
+        user.active = data["active"]
+        user_data["active"] = data["active"]
 
     try:
         await session.commit()
     except IntegrityError as e:
         await session.rollback()
-        # Fallback for race conditions, etc.
-        raise HTTPException(
-            status_code=409,
-            detail="E-mail or CPF already exists",
-        ) from e
+        raise HTTPException(status_code=409, detail="E-mail or CPF already exists") from e
 
-    await session.refresh(user)
-    return UserResponse.model_validate(user, from_attributes=True)
+    return UserResponse.model_validate(user_data)
 
 
-@users_router.delete(
-    "/{user_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def delete_user(
+@users_router.delete("/{user_id}/", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user_key(
     user_id: int,
-    session: Session,
+    session: AsyncSession = Depends(get_session),
 ) -> Response:
-    user = await session.get(User, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    await session.delete(user)
+    user_key = await session.get(UserKey, user_id)
+    if not user_key:
+        raise HTTPException(status_code=404, detail="Encryption key not found for user")
+
+    await session.delete(user_key)
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

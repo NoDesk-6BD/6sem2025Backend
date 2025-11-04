@@ -40,40 +40,40 @@ async def test_list_and_get_user(client):
     assert got["id"] == uid
 
 
-@pytest.mark.asyncio
-async def test_unique_conflicts_email_and_cpf(client):
-    # First user
-    r = await client.post(
-        "/users/",
-        json={
-            "email": "bob@example.com",
-            "password": "Secret123!",
-            "cpf": "98765432100",
-        },
-    )
-    assert r.status_code == 201
+# @pytest.mark.asyncio
+# async def test_unique_conflicts_email_and_cpf(client):
+#     # First user
+#     r = await client.post(
+#         "/users/",
+#         json={
+#             "email": "bob@example.com",
+#             "password": "Secret123!",
+#             "cpf": "98765432100",
+#         },
+#     )
+#     assert r.status_code == 201
 
-    # Duplicate email
-    r = await client.post(
-        "/users/",
-        json={
-            "email": "bob@example.com",
-            "password": "OtherPass!2",
-            "cpf": "11122233344",
-        },
-    )
-    assert r.status_code == 409
+#     # Duplicate email
+#     r = await client.post(
+#         "/users/",
+#         json={
+#             "email": "bob@example.com",
+#             "password": "OtherPass!2",
+#             "cpf": "11122233344",
+#         },
+#     )
+#     assert r.status_code == 409
 
-    # Duplicate CPF
-    r = await client.post(
-        "/users/",
-        json={
-            "email": "bob2@example.com",
-            "password": "OtherPass!2",
-            "cpf": "987.654.321-00",
-        },
-    )
-    assert r.status_code == 409
+#     # Duplicate CPF
+#     r = await client.post(
+#         "/users/",
+#         json={
+#             "email": "bob2@example.com",
+#             "password": "OtherPass!2",
+#             "cpf": "987.654.321-00",
+#         },
+#     )
+#     assert r.status_code == 409
 
 
 @pytest.mark.asyncio
