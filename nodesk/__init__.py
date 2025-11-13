@@ -20,6 +20,8 @@ from .users.protocols import PasswordHasherProtocol as UsersPasswordHasherProtoc
 from .users.routers import users_router
 from .dashboard.routers import dashboard_router
 from .terms.routers import terms_router
+from .kpi.routers import kpi_router
+from .forecasting.routers import forecasting_router
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -106,3 +108,5 @@ app.include_router(users_router)
 app.include_router(authentication_router)
 app.include_router(dashboard_router)
 app.include_router(terms_router)
+app.include_router(kpi_router)
+app.include_router(forecasting_router)
