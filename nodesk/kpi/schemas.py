@@ -7,3 +7,9 @@ class MetricsCardResponse(BaseModel):
     top_limit: str | None = None
     bottom_limit: str | None = None
     relation: bool | None = None
+
+
+class PredictionRequest(BaseModel):
+    periods: int = 12
+    freq: str = "W"
+    last_date: str
