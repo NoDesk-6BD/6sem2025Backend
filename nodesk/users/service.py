@@ -13,6 +13,7 @@ async def create_user_secure(
     phone: str | None,
     password_hash: str,
     vip: bool = False,
+    role_id: int | None = None,
 ) -> User:
     # 1️⃣ Gera chave + IV
     key_b64, iv_b64 = EncryptionService.generate_key_iv()
@@ -32,6 +33,7 @@ async def create_user_secure(
         encrypted_password=password_hash,
         vip=vip,
         active=True,
+        role_id=role_id,
         created_by_id=None,
         updated_by_id=None,
     )
@@ -69,6 +71,7 @@ async def get_user_decrypted(session: AsyncSession, user_id: int) -> dict | None
         "phone": EncryptionService.decrypt(user.phone, key, iv) if user.phone else None,
         "vip": user.vip,
         "active": user.active,
+        "role_id": user.role_id,
         "created_at": user.created_at,
         "updated_at": user.updated_at,
     }

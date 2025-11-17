@@ -1,6 +1,14 @@
 from datetime import datetime
-
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+
+class RoleResponse(BaseModel):
+    """Schema de resposta para um Papel (Role)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int  # Mapeia o "role_id" do modelo ORM
+    name: str  # Mapeia o "role_name" do modelo ORM
 
 
 class CreateUserRequest(BaseModel):
@@ -10,6 +18,7 @@ class CreateUserRequest(BaseModel):
     phone: str | None = None
     cpf: str = Field(min_length=11, max_length=14)
     vip: bool = False
+    role_id: int | None = None
 
 
 class UpdateUserRequest(BaseModel):
@@ -20,6 +29,7 @@ class UpdateUserRequest(BaseModel):
     cpf: str | None = Field(default=None, min_length=11, max_length=14)
     vip: bool | None = None
     active: bool | None = None
+    role_id: int | None = None
 
 
 class UserResponse(BaseModel):
@@ -32,5 +42,6 @@ class UserResponse(BaseModel):
     cpf: str
     vip: bool
     active: bool
+    role_id: int | None
     created_at: datetime
     updated_at: datetime

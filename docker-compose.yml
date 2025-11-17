@@ -26,7 +26,7 @@ x-nodesk-environment: &nodesk-environment
 
 services:
   sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    image: mcr.microsoft.com/mssql/server:2019-latest
     container_name: nodesk-sqlserver
     environment:
       <<: *nodesk-environment
@@ -131,7 +131,7 @@ services:
     restart: "no"
 
   postgres:
-    image: postgres
+    image: postgres:17
     container_name: nodesk-postgres
     environment:
       <<: *nodesk-environment
