@@ -1,6 +1,6 @@
 import re
 from sqlalchemy import select
-from nodesk.users.models import User, UserKey, Role
+from nodesk.users.models import User, UserKey
 from nodesk.users.service_encrypt import EncryptionService
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +12,6 @@ async def create_user_secure(
     full_name: str | None,
     phone: str | None,
     password_hash: str,
-    role: "Role" = None,
     vip: bool = False,
 ) -> User:
     # 1️⃣ Gera chave + IV
@@ -31,7 +30,6 @@ async def create_user_secure(
         full_name=full_name_enc,
         phone=phone_enc,
         encrypted_password=password_hash,
-        role=role if role is not None else Role.VIEWER,
         vip=vip,
         active=True,
         created_by_id=None,
@@ -69,7 +67,6 @@ async def get_user_decrypted(session: AsyncSession, user_id: int) -> dict | None
         "cpf": EncryptionService.decrypt(user.cpf, key, iv),
         "full_name": EncryptionService.decrypt(user.full_name, key, iv) if user.full_name else None,
         "phone": EncryptionService.decrypt(user.phone, key, iv) if user.phone else None,
-        "role": user.role.value if isinstance(user.role, Role) else user.role,
         "vip": user.vip,
         "active": user.active,
         "created_at": user.created_at,
