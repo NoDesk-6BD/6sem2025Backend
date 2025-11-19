@@ -92,6 +92,7 @@ class TermsOfUse:
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, init=False
     )
+    expired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
 
     acceptances: Mapped[List["TermsAcceptance"]] = relationship(
         "TermsAcceptance",

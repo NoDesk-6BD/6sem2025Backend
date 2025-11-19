@@ -11,7 +11,7 @@ def get_metadata(
     base_package: str = "nodesk",
     exclude_prefixes: tuple[str, ...] = (
         "nodesk.core",
-        "nodesk.__pycache__",
+        "nodesk.etl",
     ),
 ) -> list[MetaData]:
     seen: set[int] = set()

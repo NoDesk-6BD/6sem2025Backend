@@ -1,6 +1,6 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select
+from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
@@ -21,13 +21,24 @@ Session = Annotated[AsyncSession, Depends(provider_for(AsyncSession))]
 terms_router = APIRouter(prefix="/terms", tags=["terms"])
 
 
-@terms_router.post("/", response_model=TermsResponse, status_code=status.HTTP_201_CREATED)
+@terms_router.post("/new", response_model=TermsResponse, status_code=status.HTTP_201_CREATED)
 async def create_terms(payload: CreateTermsRequest, session: Session):
     new_terms = TermsOfUse(
         version=payload.version,
         content=payload.content,
         type=payload.type,
     )
+
+    stmt = select(TermsOfUse).where(TermsOfUse.type == new_terms.type).order_by(TermsOfUse.created_at.desc()).limit(1)
+
+    result = await session.execute(stmt)
+
+    current_term = result.scalar_one_or_none()
+
+    if current_term:
+        await session.execute(update(TermsOfUse).where(TermsOfUse.id == current_term.id).values(expired_at=func.now()))
+
+    # Adicionar novo termo
     session.add(new_terms)
     try:
         await session.commit()
@@ -38,7 +49,7 @@ async def create_terms(payload: CreateTermsRequest, session: Session):
     return TermsResponse.model_validate(new_terms, from_attributes=True)
 
 
-@terms_router.get("/latest", response_model=TermsResponse)
+@terms_router.get("/termxuser", response_model=TermsResponse)
 async def get_latest_terms(
     user_id: int,
     session: Session,
@@ -100,3 +111,35 @@ async def accept_terms(
     await session.commit()
     await session.refresh(acceptance)
     return TermsAcceptanceResponse.model_validate(acceptance, from_attributes=True)
+
+
+@terms_router.get("/latestuserterm", response_model=TermsAcceptanceResponse)
+async def check_newer_term(
+    user_id: int,
+    session: Session,
+):
+    # Pega o termo mais recente
+    stmt = select(TermsOfUse).order_by(TermsOfUse.created_at.desc()).limit(1)
+    result = await session.execute(stmt)
+    latest_term = result.scalar_one_or_none()
+
+    if not latest_term:
+        raise HTTPException(status_code=404, detail="No terms found")
+
+    # Verifica se há aceitação para o termo mais recente
+    accepted_stmt = select(TermsAcceptance).where(
+        TermsAcceptance.terms_id == latest_term.id,
+    )
+    accepted_result = await session.execute(accepted_stmt)
+    acceptance = accepted_result.scalar_one_or_none()
+
+    if acceptance:
+        return TermsAcceptanceResponse(
+            id=acceptance.id,
+            user_id=acceptance.user_id,
+            terms_id=acceptance.terms_id,
+            accepted_at=acceptance.accepted_at,
+            ip_address=acceptance.ip_address,
+        )
+    else:
+        raise HTTPException(status_code=204, detail="No acceptance found for the latest terms")
