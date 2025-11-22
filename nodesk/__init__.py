@@ -61,6 +61,8 @@ async def lifespan(app: FastAPI):
 
             # Always try to create admin user with encryption
             try:
+                from .users.models import Role
+
                 await create_user_secure(
                     session=session,
                     email=settings.ADMIN_EMAIL,
@@ -68,6 +70,7 @@ async def lifespan(app: FastAPI):
                     full_name="Administrator",
                     phone=None,
                     password_hash=password_hasher.hash(settings.ADMIN_PASSWORD.get_secret_value()),
+                    role=Role.ADMIN,
                     vip=True,
                 )
             except IntegrityError:

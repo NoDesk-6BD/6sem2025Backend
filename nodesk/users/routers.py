@@ -12,7 +12,7 @@ from nodesk.users.service_encrypt import EncryptionService
 
 
 from ..core.di import provider_for
-from .models import User, UserKey
+from .models import Role, User, UserKey
 from .protocols import PasswordHasherProtocol
 from .schemas import CreateUserRequest, UpdateUserRequest, UserResponse
 
@@ -37,6 +37,7 @@ async def create_user(payload: CreateUserRequest, session: Session, hasher: Pass
             full_name=payload.full_name,
             phone=payload.phone,
             password_hash=hasher.hash(payload.password),
+            role=payload.role,
             vip=payload.vip,
         )
     except IntegrityError as e:
@@ -138,6 +139,13 @@ async def update_user(
         user.phone = EncryptionService.encrypt(data["phone"], key, iv)
         user_data["phone"] = data["phone"]
 
+    if "role" in data:
+        # model_dump() serializes enums to their values, so data["role"] is already a string
+        # But we need to convert it to Role enum for SQLAlchemy
+        role_str = data["role"] if isinstance(data["role"], str) else data["role"].value
+        role_enum = Role(role_str)
+        user.role = role_enum
+        user_data["role"] = role_str
     if "vip" in data:
         user.vip = data["vip"]
         user_data["vip"] = data["vip"]
