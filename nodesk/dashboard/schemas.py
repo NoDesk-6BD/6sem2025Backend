@@ -32,3 +32,18 @@ class TotalExpiredTicketsResponse(BaseModel):
     generated_at: Optional[datetime] = None
     total_expired_tickets: int
     open_status_ids: List[int]
+
+
+class ExpiredTicketItem(BaseModel):
+    tempo_vencido_minutos: int
+    data_criacao: Optional[datetime] = None
+    titulo: str
+    compania_nome: str
+    user_vip: str
+
+
+class ExpiredTicketsListResponse(BaseModel):
+    items: List[ExpiredTicketItem]
+    total: int
+    limit: int
+    offset: int
