@@ -78,6 +78,18 @@ async def test_list_and_get_user(client):
 
 @pytest.mark.asyncio
 async def test_update_user_normalizes_and_checks_uniques(client):
+    # Create Bob first
+    r = await client.post(
+        "/users/",
+        json={
+            "email": "bob@example.com",
+            "password": "Secret123!",
+            "cpf": "98765432100",
+            "full_name": "Bob",
+        },
+    )
+    assert r.status_code == 201
+
     # Create Charlie
     r = await client.post(
         "/users/",
