@@ -2,7 +2,6 @@ from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, FastAPI
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .authentication.services import AuthenticationService
@@ -57,22 +56,24 @@ async def lifespan(app: FastAPI):
     # Bootstrap Administrator
     if settings.APP_ENVIRONMENT != "testing":
         async for session in get_session(settings):
-            from .users.models import User
+            from .users.service import create_user_secure
+            from sqlalchemy.exc import IntegrityError
 
-            result = await session.execute(select(User).where(User.email == settings.ADMIN_EMAIL))
-            admin = result.scalar_one_or_none()
-            if admin:
-                break
-            admin = User(
-                email=settings.ADMIN_EMAIL,
-                encrypted_password=password_hasher.hash(settings.ADMIN_PASSWORD.get_secret_value()),
-                cpf=settings.ADMIN_CPF,
-                full_name="Administrator",
-                vip=True,
-                active=True,
-            )
-            session.add(admin)
-            await session.commit()
+            # Always try to create admin user with encryption
+            try:
+                await create_user_secure(
+                    session=session,
+                    email=settings.ADMIN_EMAIL,
+                    cpf=settings.ADMIN_CPF,
+                    full_name="Administrator",
+                    phone=None,
+                    password_hash=password_hasher.hash(settings.ADMIN_PASSWORD.get_secret_value()),
+                    vip=True,
+                )
+            except IntegrityError:
+                # Admin already exists (email or CPF conflict)
+                await session.rollback()
+            break
 
     yield
 
