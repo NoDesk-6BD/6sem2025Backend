@@ -10,6 +10,8 @@ from nodesk.dashboard.schemas import (
     TotalExpiredTicketsResponse,
     ExpiredTicketItem,
     ExpiredTicketsListResponse,
+    CompanyItem,
+    CompaniesListResponse,
 )
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import pandas as pd
@@ -308,3 +310,23 @@ async def get_expired_tickets_list(
         limit=limit,
         offset=offset,
     )
+
+
+@dashboard_router.get(
+    "/companies",
+    response_model=CompaniesListResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_companies(
+    db: AsyncIOMotorDatabase = Depends(get_mongo_db),
+):
+    """
+    Retorna a lista de empresas.
+    """
+    collection = db["companies"]
+    cursor = collection.find().sort("name", 1)
+    docs = await cursor.to_list(length=None)
+
+    companies = [CompanyItem(**doc) for doc in docs]
+
+    return CompaniesListResponse(companies=companies)
