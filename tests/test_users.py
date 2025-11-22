@@ -17,6 +17,7 @@ async def test_create_user_ok(client):
     assert data["id"] > 0
     assert data["email"] == "alice@example.com"  # normalized lower
     assert data["cpf"] == "12345678901"  # digits only
+    assert data["role"] == "viewer"  # default role
     assert data["vip"] is True
     assert data["active"] is True
     # password must not be present in response
@@ -110,15 +111,16 @@ async def test_update_user_normalizes_and_checks_uniques(client):
     )
     assert r.status_code == 409
 
-    # Valid update (normalize cpf and email)
+    # Valid update (normalize cpf and email, update role)
     r = await client.put(
         f"/users/{uid}",
-        json={"email": " charlie2@Example.com ", "cpf": "111.222.333-00"},
+        json={"email": " charlie2@Example.com ", "cpf": "111.222.333-00", "role": "agent"},
     )
     assert r.status_code == 200
     data = r.json()
     assert data["email"] == "charlie2@example.com"
     assert data["cpf"] == "11122233300"
+    assert data["role"] == "agent"
 
 
 @pytest.mark.asyncio
