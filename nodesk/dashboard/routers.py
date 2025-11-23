@@ -8,6 +8,10 @@ from nodesk.dashboard.schemas import (
     CriticalProjectsSnapshot,
     TicketsEvolutionResponse,
     TotalExpiredTicketsResponse,
+    ExpiredTicketItem,
+    ExpiredTicketsListResponse,
+    CompanyItem,
+    CompaniesListResponse,
 )
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import pandas as pd
@@ -15,6 +19,7 @@ import pandas as pd
 dashboard_router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 EXPIRED_TICKETS_COLLECTION = "expired_tickets_totals"
+EXPIRED_TICKETS_LIST_COLLECTION = "expired_tickets_list"
 EXPIRED_TICKETS_DEFAULT_STATUS = [1, 2, 3]
 
 
@@ -265,3 +270,63 @@ async def get_critical_projects(
         doc["id"] = str(doc.pop("_id"))
 
     return documents
+
+
+@dashboard_router.get(
+    "/expired_tickets_list",
+    response_model=ExpiredTicketsListResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_expired_tickets_list(
+    db: AsyncIOMotorDatabase = Depends(get_mongo_db),
+    limit: int = Query(50, ge=1, le=200, description="Número máximo de itens por página"),
+    offset: int = Query(0, ge=0, description="Número de itens a pular"),
+):
+    """
+    Retorna a lista detalhada de chamados vencidos com paginação.
+    """
+    collection = db[EXPIRED_TICKETS_LIST_COLLECTION]
+
+    # Conta o total de documentos
+    total = await collection.count_documents({})
+
+    # Busca os documentos com paginação
+    cursor = collection.find().sort("tempo_vencido_minutos", -1).skip(offset).limit(limit)
+    docs = await cursor.to_list(length=limit)
+
+    # Converte data_criacao de string ISO para datetime se necessário
+    items = []
+    for doc in docs:
+        if "data_criacao" in doc and isinstance(doc["data_criacao"], str):
+            try:
+                doc["data_criacao"] = datetime.fromisoformat(doc["data_criacao"].replace("Z", "+00:00"))
+            except ValueError:
+                doc["data_criacao"] = None
+        items.append(ExpiredTicketItem(**doc))
+
+    return ExpiredTicketsListResponse(
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@dashboard_router.get(
+    "/companies",
+    response_model=CompaniesListResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_companies(
+    db: AsyncIOMotorDatabase = Depends(get_mongo_db),
+):
+    """
+    Retorna a lista de empresas.
+    """
+    collection = db["companies"]
+    cursor = collection.find().sort("name", 1)
+    docs = await cursor.to_list(length=None)
+
+    companies = [CompanyItem(**doc) for doc in docs]
+
+    return CompaniesListResponse(companies=companies)

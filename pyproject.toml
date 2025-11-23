@@ -4,7 +4,7 @@ version = "0.0.0"
 description = ""
 authors = [{ name = "Jhonny Freitas Dutra", email = "dutrajy@gmail.com" }]
 readme = "README.md"
-requires-python = ">=3.13,<4"
+requires-python = ">=3.13,<4.0.0"
 dependencies = [
     "fastapi (>=0.117.1,<0.118.0)",
     "uvicorn (>=0.36.0,<0.37.0)",
@@ -39,6 +39,7 @@ dev = [
     "pre-commit (>=4.3.0,<5.0.0)",
     "mypy (>=1.18.2,<2.0.0)",
     "sqlalchemy[mypy] (>=2.0.43,<3.0.0)",
+    "pytest-cov (>=7.0.0,<8.0.0)",
 ]
 
 [tool.ruff]
@@ -69,6 +70,3 @@ name = "ruff_fix"
 type = "exec"
 executable = "ruff"
 options = "check --fix REVISION_SCRIPT_FILENAME"
-
-[tool.poetry.group.dev.dependencies]
-ruff = "^0.14.5"
