@@ -69,7 +69,7 @@ async def get_latest_terms(
     latest_term = await get_latest_terms_stmt(session)
 
     if not latest_term:
-        raise HTTPException(status_code=404, detail="No terms found")
+        raise HTTPException(status_code=204, detail="No terms found")
 
     # Último termo aceito pelo usuário
     accepted_result = await get_user_accepted_terms(session, user_id)
