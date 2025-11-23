@@ -7,13 +7,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
 )
-from nodesk.core.database.session import get_session
-from nodesk.users.service import create_user_secure, get_user_decrypted
-from nodesk.users.service_encrypt import EncryptionService  # função que implementamos antes
+from nodesk.users.service import create_user_secure, get_user_decrypted, delete_user_secure
+from nodesk.users.service_encrypt import EncryptionService
 
 
 from ..core.di import provider_for
-from .models import User, UserKey
+from .models import Role, User, UserKey
 from .protocols import PasswordHasherProtocol
 from .schemas import CreateUserRequest, UpdateUserRequest, UserResponse
 
@@ -38,6 +37,7 @@ async def create_user(payload: CreateUserRequest, session: Session, hasher: Pass
             full_name=payload.full_name,
             phone=payload.phone,
             password_hash=hasher.hash(payload.password),
+            role=payload.role,
             vip=payload.vip,
         )
     except IntegrityError as e:
@@ -86,7 +86,7 @@ async def get_user(
 async def update_user(
     user_id: int,
     payload: UpdateUserRequest,
-    session: AsyncSession = Depends(get_session),
+    session: Session,
 ) -> UserResponse:
     user_data = await get_user_decrypted(session, user_id)
     if not user_data:
@@ -109,14 +109,22 @@ async def update_user(
         data["cpf"] = digits
 
     if "email" in data and data["email"] != user_data["email"]:
-        exists = await session.scalar(select(User.id).where(User.email == data["email"], User.id != user_id))
-        if exists:
-            raise HTTPException(status_code=409, detail="E-mail already exists")
+        # Check for duplicate email by decrypting all users' emails
+        stmt = select(User, UserKey).join(UserKey, User.id == UserKey.user_id).where(User.id != user_id)
+        result = await session.execute(stmt)
+        for other_user, other_key in result.all():
+            decrypted_email = EncryptionService.decrypt(other_user.email, other_key.aes_key, other_key.iv)
+            if decrypted_email.lower() == data["email"].lower():
+                raise HTTPException(status_code=409, detail="E-mail already exists")
 
     if "cpf" in data and data["cpf"] != user_data["cpf"]:
-        exists = await session.scalar(select(User.id).where(User.cpf == data["cpf"], User.id != user_id))
-        if exists:
-            raise HTTPException(status_code=409, detail="CPF already exists")
+        # Check for duplicate CPF by decrypting all users' CPFs
+        stmt = select(User, UserKey).join(UserKey, User.id == UserKey.user_id).where(User.id != user_id)
+        result = await session.execute(stmt)
+        for other_user, other_key in result.all():
+            decrypted_cpf = EncryptionService.decrypt(other_user.cpf, other_key.aes_key, other_key.iv)
+            if decrypted_cpf == data["cpf"]:
+                raise HTTPException(status_code=409, detail="CPF already exists")
 
     if "email" in data:
         user.email = EncryptionService.encrypt(data["email"], key, iv)
@@ -131,6 +139,13 @@ async def update_user(
         user.phone = EncryptionService.encrypt(data["phone"], key, iv)
         user_data["phone"] = data["phone"]
 
+    if "role" in data:
+        # model_dump() serializes enums to their values, so data["role"] is already a string
+        # But we need to convert it to Role enum for SQLAlchemy
+        role_str = data["role"] if isinstance(data["role"], str) else data["role"].value
+        role_enum = Role(role_str)
+        user.role = role_enum
+        user_data["role"] = role_str
     if "vip" in data:
         user.vip = data["vip"]
         user_data["vip"] = data["vip"]
@@ -147,15 +162,12 @@ async def update_user(
     return UserResponse.model_validate(user_data)
 
 
-@users_router.delete("/{user_id}/", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user_key(
+@users_router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
     user_id: int,
-    session: AsyncSession = Depends(get_session),
+    session: Session,
 ) -> Response:
-    user_key = await session.get(UserKey, user_id)
-    if not user_key:
-        raise HTTPException(status_code=404, detail="Encryption key not found for user")
-
-    await session.delete(user_key)
-    await session.commit()
+    deleted = await delete_user_secure(session, user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="User not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
