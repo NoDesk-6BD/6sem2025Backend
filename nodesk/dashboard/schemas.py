@@ -47,3 +47,13 @@ class ExpiredTicketsListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class CompanyItem(BaseModel):
+    company_id: int
+    name: str
+    cnpj: Optional[str] = None
+
+
+class CompaniesListResponse(BaseModel):
+    companies: List[CompanyItem]
