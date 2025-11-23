@@ -1,6 +1,6 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select
+from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
@@ -13,6 +13,7 @@ from .schemas import (
     TermsResponse,
     AcceptTermsRequest,
     TermsAcceptanceResponse,
+    TermsCheckResponse,
 )
 
 # Dependências
@@ -21,13 +22,24 @@ Session = Annotated[AsyncSession, Depends(provider_for(AsyncSession))]
 terms_router = APIRouter(prefix="/terms", tags=["terms"])
 
 
-@terms_router.post("/", response_model=TermsResponse, status_code=status.HTTP_201_CREATED)
+@terms_router.post("/new", response_model=TermsResponse, status_code=status.HTTP_201_CREATED)
 async def create_terms(payload: CreateTermsRequest, session: Session):
     new_terms = TermsOfUse(
         version=payload.version,
         content=payload.content,
         type=payload.type,
     )
+
+    stmt = select(TermsOfUse).where(TermsOfUse.type == new_terms.type).order_by(TermsOfUse.created_at.desc()).limit(1)
+
+    result = await session.execute(stmt)
+
+    current_term = result.scalar_one_or_none()
+
+    if current_term:
+        await session.execute(update(TermsOfUse).where(TermsOfUse.id == current_term.id).values(expired_at=func.now()))
+
+    # Adicionar novo termo
     session.add(new_terms)
     try:
         await session.commit()
@@ -39,27 +51,43 @@ async def create_terms(payload: CreateTermsRequest, session: Session):
 
 
 @terms_router.get("/latest", response_model=TermsResponse)
-async def get_latest_terms(
-    user_id: int,
-    session: Session,
-):
-    stmt = select(TermsOfUse).order_by(TermsOfUse.created_at.desc()).limit(1)
-    result = await session.execute(stmt)
-    latest_term = result.scalar_one_or_none()
+async def check_newer_term(session: Session):
+    latest_term = await get_latest_terms_stmt(session)
 
     if not latest_term:
         raise HTTPException(status_code=404, detail="No terms found")
 
-    # Checa se usuário já aceitou
-    accepted_stmt = select(TermsAcceptance).where(
-        TermsAcceptance.user_id == user_id,
-        TermsAcceptance.terms_id == latest_term.id,
-    )
-    accepted_result = await session.execute(accepted_stmt)
-    if accepted_result.scalar_one_or_none():
-        raise HTTPException(status_code=204, detail="User already accepted latest terms")
-
     return TermsResponse.model_validate(latest_term, from_attributes=True)
+
+
+@terms_router.get("/check_user_acceptance", response_model=TermsCheckResponse)
+async def get_latest_terms(
+    user_id: int,
+    session: Session,
+):
+    # Último termo ativo
+    latest_term = await get_latest_terms_stmt(session)
+
+    if not latest_term:
+        raise HTTPException(status_code=204, detail="No terms found")
+
+    # Último termo aceito pelo usuário
+    accepted_result = await get_user_accepted_terms(session, user_id)
+
+    if not accepted_result:
+        # Nunca aceitou nenhum termo
+        return TermsCheckResponse(
+            accepted=False,
+            latest_terms=TermsResponse.model_validate(latest_term, from_attributes=True),
+        )
+
+    # Verifica se aceitou o termo atual
+    has_accepted = accepted_result.terms_id == latest_term.id
+
+    return TermsCheckResponse(
+        accepted=has_accepted,
+        latest_terms=TermsResponse.model_validate(latest_term, from_attributes=True),
+    )
 
 
 @terms_router.post("/accept", response_model=TermsAcceptanceResponse)
@@ -100,3 +128,26 @@ async def accept_terms(
     await session.commit()
     await session.refresh(acceptance)
     return TermsAcceptanceResponse.model_validate(acceptance, from_attributes=True)
+
+
+async def get_latest_terms_stmt(
+    session: AsyncSession,
+):
+    latest_terms = (
+        select(TermsOfUse).where(TermsOfUse.expired_at.is_(None)).order_by(TermsOfUse.created_at.desc()).limit(1)
+    )
+
+    result = await session.execute(latest_terms)
+    return result.scalar_one_or_none()
+
+
+async def get_user_accepted_terms(session: AsyncSession, user_id: int):
+    stmt = (
+        select(TermsAcceptance)
+        .where(TermsAcceptance.user_id == user_id)
+        .order_by(TermsAcceptance.accepted_at.desc())
+        .limit(1)
+    )
+
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()

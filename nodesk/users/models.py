@@ -1,16 +1,9 @@
-import enum
 from datetime import datetime
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint, func, text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text, UniqueConstraint, func, text
 from sqlalchemy.orm import Mapped, mapped_column, registry, relationship
 from typing import List, Optional
 
 table_registry = registry()
-
-
-class Role(str, enum.Enum):
-    ADMIN = "admin"
-    AGENT = "agent"
-    VIEWER = "viewer"
 
 
 @table_registry.mapped_as_dataclass(kw_only=True)
@@ -23,7 +16,6 @@ class User:
     cpf: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     full_name: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
     phone: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
-    role: Mapped[Role] = mapped_column(String(20), nullable=False, default=Role.VIEWER)
     vip: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
 
@@ -84,7 +76,7 @@ class UserKey:
     )
 
 
-class TermType(str, enum.Enum):
+class TermType(str, Enum):
     REQUIRED = "required"  # termos obrigatórios para uso da plataforma
     OPTIONAL = "optional"  # termos opcionais, como marketing
 
@@ -100,6 +92,7 @@ class TermsOfUse:
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, init=False
     )
+    expired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
 
     acceptances: Mapped[List["TermsAcceptance"]] = relationship(
         "TermsAcceptance",
