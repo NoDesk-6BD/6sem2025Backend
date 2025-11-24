@@ -281,17 +281,23 @@ async def get_expired_tickets_list(
     db: AsyncIOMotorDatabase = Depends(get_mongo_db),
     limit: int = Query(50, ge=1, le=200, description="Número máximo de itens por página"),
     offset: int = Query(0, ge=0, description="Número de itens a pular"),
+    company_id: Optional[int] = Query(None, description="Filtrar por ID da empresa"),
 ):
     """
     Retorna a lista detalhada de chamados vencidos com paginação.
     """
     collection = db[EXPIRED_TICKETS_LIST_COLLECTION]
 
+    # Monta o filtro de busca
+    filter_query = {}
+    if company_id is not None:
+        filter_query["compania_id"] = company_id
+
     # Conta o total de documentos
-    total = await collection.count_documents({})
+    total = await collection.count_documents(filter_query)
 
     # Busca os documentos com paginação
-    cursor = collection.find().sort("tempo_vencido_minutos", -1).skip(offset).limit(limit)
+    cursor = collection.find(filter_query).sort("tempo_vencido_minutos", -1).skip(offset).limit(limit)
     docs = await cursor.to_list(length=limit)
 
     # Converte data_criacao de string ISO para datetime se necessário

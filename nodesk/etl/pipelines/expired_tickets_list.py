@@ -27,6 +27,7 @@ def run() -> str:
                 tempo_vencido.label("tempo_vencido_minutos"),
                 Ticket.created_at.label("data_criacao"),
                 Ticket.title.label("titulo"),
+                Company.company_id.label("compania_id"),
                 Company.name.label("compania_nome"),
                 user_vip.label("user_vip"),
             )
@@ -51,6 +52,7 @@ def run() -> str:
             "tempo_vencido_minutos": int(row.tempo_vencido_minutos) if row.tempo_vencido_minutos else 0,
             "data_criacao": row.data_criacao.isoformat() if row.data_criacao else None,
             "titulo": row.titulo,
+            "compania_id": int(row.compania_id) if row.compania_id else None,
             "compania_nome": row.compania_nome,
             "user_vip": row.user_vip,
         }
