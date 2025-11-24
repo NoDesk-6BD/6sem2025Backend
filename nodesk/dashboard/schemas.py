@@ -38,6 +38,7 @@ class ExpiredTicketItem(BaseModel):
     tempo_vencido_minutos: int
     data_criacao: Optional[datetime] = None
     titulo: str
+    compania_id: int
     compania_nome: str
     user_vip: str
 
