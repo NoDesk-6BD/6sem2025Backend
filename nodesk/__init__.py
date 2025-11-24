@@ -2,7 +2,6 @@ from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, FastAPI
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .authentication.services import AuthenticationService
@@ -20,6 +19,7 @@ from .users.protocols import PasswordHasherProtocol as UsersPasswordHasherProtoc
 from .users.routers import users_router
 from .dashboard.routers import dashboard_router
 from .terms.routers import terms_router
+from .kpi.routers import kpi_router
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -56,22 +56,27 @@ async def lifespan(app: FastAPI):
     # Bootstrap Administrator
     if settings.APP_ENVIRONMENT != "testing":
         async for session in get_session(settings):
-            from .users.models import User
+            from .users.service import create_user_secure, get_user_by_email, get_user_by_cpf
+            from .users.models import Role
 
-            result = await session.execute(select(User).where(User.email == settings.ADMIN_EMAIL))
-            admin = result.scalar_one_or_none()
-            if admin:
-                break
-            admin = User(
-                email=settings.ADMIN_EMAIL,
-                encrypted_password=password_hasher.hash(settings.ADMIN_PASSWORD.get_secret_value()),
-                cpf=settings.ADMIN_CPF,
-                full_name="Administrator",
-                vip=True,
-                active=True,
-            )
-            session.add(admin)
-            await session.commit()
+            # Check if admin user already exists
+            existing_admin = await get_user_by_email(session, settings.ADMIN_EMAIL)
+            if not existing_admin:
+                existing_admin = await get_user_by_cpf(session, settings.ADMIN_CPF)
+
+            # Create admin user only if it doesn't exist
+            if not existing_admin:
+                await create_user_secure(
+                    session=session,
+                    email=settings.ADMIN_EMAIL,
+                    cpf=settings.ADMIN_CPF,
+                    full_name="Administrator",
+                    phone=None,
+                    password_hash=password_hasher.hash(settings.ADMIN_PASSWORD.get_secret_value()),
+                    role=Role.ADMIN,
+                    vip=True,
+                )
+            break
 
     yield
 
@@ -106,3 +111,4 @@ app.include_router(users_router)
 app.include_router(authentication_router)
 app.include_router(dashboard_router)
 app.include_router(terms_router)
+app.include_router(kpi_router)

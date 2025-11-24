@@ -1,13 +1,12 @@
 from typing import Annotated
 
 from fastapi import Depends
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from nodesk.users.service_encrypt import EncryptionService
-
 from ..core.di import provider_for
-from ..users.models import User, UserKey
+from ..users.service import get_user_by_email
+from ..users.service_encrypt import EncryptionService
+from ..users.models import UserKey
 from .protocols import PasswordHasherProtocol, TokenIssuerProtocol
 
 # Dependencies
@@ -28,27 +27,27 @@ class AuthenticationService:
         self.token_issuer = token_issuer
 
     async def authenticate(self, email: str, password: str) -> str | None:
-        stmt = select(User).join(UserKey)
-        res = await self.session.execute(stmt)
-        users = res.scalars().all()
+        user = await get_user_by_email(self.session, email)
+        if not user:
+            return None
 
-        for user in users:
-            stmt_key = select(UserKey).where(UserKey.user_id == user.id)
-            user_key = (await self.session.execute(stmt_key)).scalars().first()
-            if not user_key:
-                continue
+        if not user.active:
+            return None
 
-            key, iv = user_key.aes_key, user_key.iv
-            decrypted_email = EncryptionService.decrypt(user.email, key, iv)
+        if not self.hasher.verify(password, user.encrypted_password):
+            return None
 
-            if decrypted_email.lower() == email.lower():
-                if not user.active:
-                    return None
-                if not self.hasher.verify(password, user.encrypted_password):
-                    return None
-                return self.token_issuer.issue(
-                    subject=user.id,
-                    claims={"email": decrypted_email},
-                )
+        # Get decrypted email for token claims
+        from sqlalchemy import select
 
-        return None
+        stmt_key = select(UserKey).where(UserKey.user_id == user.id)
+        user_key = (await self.session.execute(stmt_key)).scalar_one_or_none()
+        if not user_key:
+            return None
+
+        decrypted_email = EncryptionService.decrypt(user.email, user_key.aes_key, user_key.iv)
+
+        return self.token_issuer.issue(
+            subject=user.id,
+            claims={"email": decrypted_email},
+        )

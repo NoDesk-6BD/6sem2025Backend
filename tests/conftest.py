@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import (
 
 from nodesk import app
 from nodesk.core.di import provider_for
+from nodesk.core.database.protocols import SQLAlchemySettingsProtocol, MongoSettingsProtocol
+from nodesk.core.settings import Settings
 from nodesk.users.models import table_registry
 
 
@@ -52,7 +54,11 @@ async def client(
         async with _sessionmaker() as s:
             yield s
 
+    # Bind dependencies needed for testing
+    settings = Settings()
     app.dependency_overrides[provider_for(AsyncSession)] = session_dep
+    app.dependency_overrides[provider_for(SQLAlchemySettingsProtocol)] = lambda: settings
+    app.dependency_overrides[provider_for(MongoSettingsProtocol)] = lambda: settings
 
     async with LifespanManager(app):
         transport = ASGITransport(app=app)
