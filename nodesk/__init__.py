@@ -56,13 +56,16 @@ async def lifespan(app: FastAPI):
     # Bootstrap Administrator
     if settings.APP_ENVIRONMENT != "testing":
         async for session in get_session(settings):
-            from .users.service import create_user_secure
-            from sqlalchemy.exc import IntegrityError
+            from .users.service import create_user_secure, get_user_by_email, get_user_by_cpf
+            from .users.models import Role
 
-            # Always try to create admin user with encryption
-            try:
-                from .users.models import Role
+            # Check if admin user already exists
+            existing_admin = await get_user_by_email(session, settings.ADMIN_EMAIL)
+            if not existing_admin:
+                existing_admin = await get_user_by_cpf(session, settings.ADMIN_CPF)
 
+            # Create admin user only if it doesn't exist
+            if not existing_admin:
                 await create_user_secure(
                     session=session,
                     email=settings.ADMIN_EMAIL,
@@ -73,9 +76,6 @@ async def lifespan(app: FastAPI):
                     role=Role.ADMIN,
                     vip=True,
                 )
-            except IntegrityError:
-                # Admin already exists (email or CPF conflict)
-                await session.rollback()
             break
 
     yield

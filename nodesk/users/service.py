@@ -5,6 +5,50 @@ from nodesk.users.service_encrypt import EncryptionService
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
+async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
+    """Find a user by email by decrypting and comparing all users."""
+    email_lower = email.lower().strip()
+    stmt = select(User).join(UserKey)
+    res = await session.execute(stmt)
+    users = res.scalars().all()
+
+    for user in users:
+        stmt_key = select(UserKey).where(UserKey.user_id == user.id)
+        user_key = (await session.execute(stmt_key)).scalar_one_or_none()
+        if not user_key:
+            continue
+
+        key, iv = user_key.aes_key, user_key.iv
+        decrypted_email = EncryptionService.decrypt(user.email, key, iv)
+
+        if decrypted_email and decrypted_email.lower() == email_lower:
+            return user
+
+    return None
+
+
+async def get_user_by_cpf(session: AsyncSession, cpf: str) -> User | None:
+    """Find a user by CPF by decrypting and comparing all users."""
+    cpf_clean = re.sub(r"\D", "", cpf)
+    stmt = select(User).join(UserKey)
+    res = await session.execute(stmt)
+    users = res.scalars().all()
+
+    for user in users:
+        stmt_key = select(UserKey).where(UserKey.user_id == user.id)
+        user_key = (await session.execute(stmt_key)).scalar_one_or_none()
+        if not user_key:
+            continue
+
+        key, iv = user_key.aes_key, user_key.iv
+        decrypted_cpf = EncryptionService.decrypt(user.cpf, key, iv)
+
+        if decrypted_cpf and re.sub(r"\D", "", decrypted_cpf) == cpf_clean:
+            return user
+
+    return None
+
+
 async def create_user_secure(
     session: AsyncSession,
     email: str,
@@ -15,12 +59,21 @@ async def create_user_secure(
     role: "Role" = None,
     vip: bool = False,
 ) -> User:
+    # Check for existing users
+    existing_user = await get_user_by_email(session, email)
+    if existing_user:
+        raise ValueError(f"User with email {email} already exists")
+
+    existing_user = await get_user_by_cpf(session, cpf)
+    if existing_user:
+        raise ValueError(f"User with CPF {cpf} already exists")
+
     # 1️⃣ Gera chave + IV
     key_b64, iv_b64 = EncryptionService.generate_key_iv()
 
     # 2️⃣ Criptografa todos os campos sensíveis
-    email_enc = EncryptionService.encrypt(email, key_b64, iv_b64)
-    cpf_enc = EncryptionService.encrypt(cpf, key_b64, iv_b64)
+    email_enc = EncryptionService.encrypt(email.strip().lower(), key_b64, iv_b64)
+    cpf_enc = EncryptionService.encrypt(re.sub(r"\D", "", cpf), key_b64, iv_b64)
     full_name_enc = EncryptionService.encrypt(full_name, key_b64, iv_b64) if full_name else None
     phone_enc = EncryptionService.encrypt(phone, key_b64, iv_b64) if phone else None
 
@@ -101,6 +154,19 @@ async def update_user_secure(session: AsyncSession, user_id: int, data: dict) ->
 
     key, iv = user_key.aes_key, user_key.iv
 
+    # Check for conflicts when updating email or CPF
+    if "email" in data and data["email"]:
+        email_normalized = data["email"].strip().lower()
+        existing_user = await get_user_by_email(session, email_normalized)
+        if existing_user and existing_user.id != user_id:
+            raise ValueError(f"User with email {email_normalized} already exists")
+
+    if "cpf" in data and data["cpf"]:
+        cpf_clean = re.sub(r"\D", "", data["cpf"])
+        existing_user = await get_user_by_cpf(session, cpf_clean)
+        if existing_user and existing_user.id != user_id:
+            raise ValueError(f"User with CPF {cpf_clean} already exists")
+
     # Criptografa apenas os campos alterados
     if "email" in data and data["email"]:
         data["email"] = EncryptionService.encrypt(data["email"].strip().lower(), key, iv)
@@ -121,17 +187,16 @@ async def update_user_secure(session: AsyncSession, user_id: int, data: dict) ->
 
 
 async def delete_user_secure(session: AsyncSession, user_id: int) -> bool:
-    """Deleta o usuário e sua chave de criptografia."""
+    """Remove a chave de descriptografia — tornando os dados irrecuperáveis, mas mantém o usuário no banco."""
     user = await session.get(User, user_id)
     if not user:
         return False
 
-    # Deleta a chave AES do usuário, se existir
+    # Deleta apenas a chave AES do usuário, tornando os dados irrecuperáveis
     user_key = await session.get(UserKey, user_id)
     if user_key:
         await session.delete(user_key)
+        await session.commit()
+        return True
 
-    # Deleta o usuário
-    await session.delete(user)
-    await session.commit()
-    return True
+    return False
