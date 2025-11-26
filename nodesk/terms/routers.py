@@ -60,6 +60,16 @@ async def check_newer_term(session: Session):
     return TermsResponse.model_validate(latest_term, from_attributes=True)
 
 
+@terms_router.get("/required", response_model=TermsResponse)
+async def check_required_term(session: Session):
+    latest_term = await get_latest_required_terms_stmt(session)
+
+    if not latest_term:
+        raise HTTPException(status_code=404, detail="No required terms found")
+
+    return TermsResponse.model_validate(latest_term, from_attributes=True)
+
+
 @terms_router.get("/check_user_acceptance", response_model=TermsCheckResponse)
 async def get_latest_terms(
     user_id: int,
@@ -135,6 +145,20 @@ async def get_latest_terms_stmt(
 ):
     latest_terms = (
         select(TermsOfUse).where(TermsOfUse.expired_at.is_(None)).order_by(TermsOfUse.created_at.desc()).limit(1)
+    )
+
+    result = await session.execute(latest_terms)
+    return result.scalar_one_or_none()
+
+
+async def get_latest_required_terms_stmt(
+    session: AsyncSession,
+):
+    latest_terms = (
+        select(TermsOfUse)
+        .where(TermsOfUse.expired_at.is_(None), TermsOfUse.type == "required")
+        .order_by(TermsOfUse.created_at.desc())
+        .limit(1)
     )
 
     result = await session.execute(latest_terms)
