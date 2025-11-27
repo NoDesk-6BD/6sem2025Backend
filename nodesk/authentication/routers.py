@@ -32,4 +32,5 @@ async def login(
         user_id=result["user_id"],
         name=result["name"],
         email=result["email"],
+        role=result["role"],
     )

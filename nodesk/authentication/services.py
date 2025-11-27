@@ -50,10 +50,11 @@ class AuthenticationService:
             EncryptionService.decrypt(user.full_name, user_key.aes_key, user_key.iv) if user.full_name else ""
         )
         decrypted_email = EncryptionService.decrypt(user.email, user_key.aes_key, user_key.iv)
+        user_role = user.role.value if hasattr(user.role, "value") else str(user.role)
 
         token = self.token_issuer.issue(
             subject=user.id,
-            claims={"id": user_id, "name": decrypted_name, "email": decrypted_email},
+            claims={"id": user_id, "name": decrypted_name, "email": decrypted_email, "role": user_role},
         )
 
         return {
@@ -61,4 +62,5 @@ class AuthenticationService:
             "user_id": user_id,
             "name": decrypted_name,
             "email": decrypted_email,
+            "role": user_role,
         }
