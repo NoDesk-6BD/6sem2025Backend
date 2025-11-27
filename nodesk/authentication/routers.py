@@ -18,13 +18,18 @@ async def login(
     payload: LoginRequest,
     service: Service,
 ) -> TokenResponse:
-    token = await service.authenticate(
+    result = await service.authenticate(
         email=payload.email.strip().lower(),
         password=payload.password,
     )
-    if not token:
+    if not result:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
         )
-    return TokenResponse(access_token=token)
+    return TokenResponse(
+        access_token=result["access_token"],
+        user_id=result["user_id"],
+        name=result["name"],
+        email=result["email"],
+    )
