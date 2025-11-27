@@ -26,7 +26,7 @@ class AuthenticationService:
         self.hasher = hasher
         self.token_issuer = token_issuer
 
-    async def authenticate(self, email: str, password: str) -> str | None:
+    async def authenticate(self, email: str, password: str) -> dict[str, str | int] | None:
         user = await get_user_by_email(self.session, email)
         if not user:
             return None
@@ -45,9 +45,20 @@ class AuthenticationService:
         if not user_key:
             return None
 
+        user_id = user.id
+        decrypted_name = (
+            EncryptionService.decrypt(user.full_name, user_key.aes_key, user_key.iv) if user.full_name else ""
+        )
         decrypted_email = EncryptionService.decrypt(user.email, user_key.aes_key, user_key.iv)
 
-        return self.token_issuer.issue(
+        token = self.token_issuer.issue(
             subject=user.id,
-            claims={"email": decrypted_email},
+            claims={"id": user_id, "name": decrypted_name, "email": decrypted_email},
         )
+
+        return {
+            "access_token": token,
+            "user_id": user_id,
+            "name": decrypted_name,
+            "email": decrypted_email,
+        }
