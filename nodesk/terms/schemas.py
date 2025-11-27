@@ -33,3 +33,8 @@ class TermsAcceptanceResponse(BaseModel):
     terms_id: int
     accepted_at: datetime
     ip_address: str | None
+
+
+class TermsCheckResponse(BaseModel):
+    accepted: bool
+    latest_terms: TermsResponse
