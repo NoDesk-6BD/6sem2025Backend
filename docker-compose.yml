@@ -131,7 +131,7 @@ services:
     restart: "no"
 
   postgres:
-    image: postgres
+    image: postgres:16
     container_name: nodesk-postgres
     environment:
       <<: *nodesk-environment
