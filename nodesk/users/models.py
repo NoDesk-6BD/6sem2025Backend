@@ -1,8 +1,9 @@
 import enum
 from datetime import datetime
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint, func, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, registry, relationship
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 table_registry = registry()
 
@@ -67,9 +68,13 @@ class User:
     )
 
 
+ENCRYPTION_KEYS_SCHEMA = "encryption_keys"
+
+
 @table_registry.mapped_as_dataclass(kw_only=True)
 class UserKey:
     __tablename__ = "user_keys"
+    __table_args__ = {"schema": ENCRYPTION_KEYS_SCHEMA}
 
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
@@ -110,6 +115,10 @@ class TermsOfUse:
         init=False,
     )
 
+    purposes: Mapped[Optional[Dict[str, str]]] = mapped_column(
+        JSONB, nullable=True, default=None
+    )  # {finalidade: descricao, ...}
+
 
 @table_registry.mapped_as_dataclass(kw_only=True)
 class TermsAcceptance:
@@ -120,6 +129,9 @@ class TermsAcceptance:
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     terms_id: Mapped[int] = mapped_column(ForeignKey("terms_of_use.id"), nullable=False)
     ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+    accepted_purposes: Mapped[Optional[Dict[str, bool]]] = mapped_column(
+        JSONB, nullable=True, default=None
+    )  # {finalidade: true/false, ...}
     accepted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
